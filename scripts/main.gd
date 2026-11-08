@@ -301,6 +301,12 @@ func _edit_selected_wall() -> void:
 	var wall_length_mm := Units.pixels_to_mm(wall_a.distance_to(wall_b))
 	opening_offset.value = float(wall.get("opening_offset_mm", wall_length_mm * 0.5))
 	_labeled_control(form, "Центр проёма от начала стены (mm)", opening_offset)
+	var opening_height := SpinBox.new()
+	opening_height.min_value = 300.0
+	opening_height.max_value = 4000.0
+	opening_height.step = 50.0
+	opening_height.value = float(wall.get("opening_height_mm", 2050.0 if opening_kind == "door" else 1200.0))
+	_labeled_control(form, "Высота проёма (mm)", opening_height)
 	var sill_height := SpinBox.new()
 	sill_height.min_value = 0.0
 	sill_height.max_value = 2500.0
@@ -312,7 +318,7 @@ func _edit_selected_wall() -> void:
 		if valid:
 			plan_canvas.set_selected_wall_properties(thickness_input.value, height_input.value, bearing.button_pressed)
 			var selected_opening := "door" if opening_select.selected == 1 else "window" if opening_select.selected == 2 else ""
-			plan_canvas.set_selected_wall_opening(selected_opening, opening_width.value, opening_offset.value, sill_height.value)
+			plan_canvas.set_selected_wall_opening(selected_opening, opening_width.value, opening_offset.value, sill_height.value, opening_height.value)
 			status_label.text = "Параметры стены и проёма обновлены • mm"
 		else:
 			status_label.text = "Не удалось изменить длину стены"
@@ -341,6 +347,7 @@ func _on_wall_created(_a: Vector2, _b: Vector2) -> void:
 		last_wall["opening_width_mm"] = minf(900.0 if pending_opening == "door" else 1250.0, maxf(500.0, length_mm - 100.0))
 		last_wall["opening_offset_mm"] = length_mm * 0.5
 		last_wall["sill_height_mm"] = 850.0
+		last_wall["opening_height_mm"] = 2050.0 if pending_opening == "door" else 1200.0
 		walls[last_index] = last_wall
 		plan_canvas.walls = walls.duplicate(true)
 		plan_canvas.queue_redraw()
