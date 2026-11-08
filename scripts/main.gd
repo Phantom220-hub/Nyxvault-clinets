@@ -22,6 +22,7 @@ var camera_pitch := -0.72
 var camera_distance := 17.0
 var preview_dragging := false
 var preview_last_pos := Vector2.ZERO
+var pending_opening := ""
 
 func _ready() -> void:
 	_build_interface()
@@ -76,6 +77,9 @@ func _build_interface() -> void:
 	_add_button(tools, "МАСШТАБ +", func(): _scale_selected(1.1), false)
 	_add_button(tools, "МАСШТАБ −", func(): _scale_selected(0.9), false)
 	_add_button(tools, "УДАЛИТЬ", _delete_selected, false)
+	_add_button(tools, "ДВЕРЬ", func(): _set_opening("door"), false)
+	_add_button(tools, "ОКНО", func(): _set_opening("window"), false)
+	_add_button(tools, "БЕЗ ПРОЁМА", func(): _set_opening(""), false)
 	object_menu = PopupMenu.new()
 	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4]]:
 		object_menu.add_item(pair[0], pair[1])
@@ -178,9 +182,20 @@ func _on_object_selected(id: int) -> void:
 	if is_3d:
 		_rebuild_3d()
 
+func _set_opening(kind: String) -> void:
+	pending_opening = kind
+	status_label.text = "Следующая стена: " + ("проём двери" if kind == "door" else "проём окна" if kind == "window" else "без проёма")
+
 func _on_wall_created(_a: Vector2, _b: Vector2) -> void:
 	walls = plan_canvas.walls.duplicate(true)
-	status_label.text = "Стены: %d • Добавлена новая стена" % walls.size()
+	if not pending_opening.is_empty() and not walls.is_empty():
+		walls[walls.size() - 1]["opening"] = pending_opening
+		plan_canvas.walls = walls.duplicate(true)
+		plan_canvas.queue_redraw()
+		pending_opening = ""
+	status_label.text = "Стены: %d • Стена добавлена" % walls.size()
+	if is_3d:
+		_rebuild_3d()
 
 func _show_plan() -> void:
 	is_3d = false
@@ -381,8 +396,30 @@ func _rebuild_3d() -> void:
 		var length := a.distance_to(b) / PPM
 		var angle := atan2(b.y - a.y, b.x - a.x)
 		var center := Vector3((mid.x - plan_canvas.size.x * 0.5) / PPM, 1.4, (mid.y - plan_canvas.size.y * 0.5) / PPM)
-		var segment := _box(root, Vector3(maxf(length, 0.12), WALL_HEIGHT, 0.16), center, wall_mat)
-		segment.rotation.y = -angle
+		var opening := str(wall.get("opening", ""))
+		var direction := Vector3(cos(angle), 0, sin(angle))
+		if opening == "door" or opening == "window":
+			var opening_width := 0.95 if opening == "door" else 1.25
+			var gap := minf(opening_width, maxf(length - 0.25, 0.0))
+			var side_length := maxf((length - gap) * 0.5, 0.06)
+			for side in [-1.0, 1.0]:
+				var side_center := center + direction * side * (gap * 0.5 + side_length * 0.5)
+				var side_wall := _box(root, Vector3(side_length, WALL_HEIGHT, 0.16), side_center, wall_mat)
+				side_wall.rotation.y = -angle
+			if opening == "door":
+				var lintel := _box(root, Vector3(gap, WALL_HEIGHT - 2.05, 0.16), center + Vector3(0, 2.05 + (WALL_HEIGHT - 2.05) * 0.5, 0), wall_mat)
+				lintel.rotation.y = -angle
+			else:
+				var sill := _box(root, Vector3(gap, 0.85, 0.16), center + Vector3(0, 0.425, 0), wall_mat)
+				var header := _box(root, Vector3(gap, 0.75, 0.16), center + Vector3(0, 2.425, 0), wall_mat)
+				sill.rotation.y = -angle
+				header.rotation.y = -angle
+				var glass := _mat(Color("#79CDE0", 0.42), 0.18)
+				var pane := _box(root, Vector3(gap * 0.94, 1.0, 0.035), center + Vector3(0, 1.35, 0), glass)
+				pane.rotation.y = -angle
+		else:
+			var segment := _box(root, Vector3(maxf(length, 0.12), WALL_HEIGHT, 0.16), center, wall_mat)
+			segment.rotation.y = -angle
 		var skirting := _box(root, Vector3(maxf(length, 0.12), 0.1, 0.19), Vector3(center.x, 0.1, center.z), trim_mat)
 		skirting.rotation.y = -angle
 		var crown := _box(root, Vector3(maxf(length, 0.12), 0.07, 0.19), Vector3(center.x, WALL_HEIGHT - 0.035, center.z), trim_mat)
@@ -433,7 +470,7 @@ func _add_furniture(root: Node3D, item: Dictionary) -> void:
 func _save_project() -> void:
 	var wall_data: Array[Dictionary] = []
 	for w in walls:
-		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y]})
+		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", "")})
 	var furniture_data: Array[Dictionary] = []
 	for item in furniture:
 		var p: Vector2 = item.get("position", Vector2.ZERO)
@@ -463,7 +500,7 @@ func _load_project() -> void:
 	walls.clear()
 	for item in data.get("walls", []):
 		if item is Dictionary and item.has("a") and item.has("b") and item.a.size() == 2 and item.b.size() == 2:
-			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1]))})
+			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1])), "opening": str(item.get("opening", ""))})
 	furniture.clear()
 	for item in data.get("furniture", []):
 		if item is Dictionary and item.has("kind") and item.has("position") and item.position.size() == 2:
