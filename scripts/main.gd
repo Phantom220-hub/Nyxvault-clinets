@@ -348,7 +348,8 @@ func _to_viewport_position(container_pos: Vector2) -> Vector2:
 func _screen_to_floor(screen_pos: Vector2) -> Variant:
 	var origin := view_camera.project_ray_origin(screen_pos)
 	var direction := view_camera.project_ray_normal(screen_pos)
-	return Plane(Vector3.UP, 0.0).intersects_ray(origin, direction)
+	var floor_y := float(current_floor) * (WALL_HEIGHT + 0.22)
+	return Plane(Vector3.UP, floor_y).intersects_ray(origin, direction)
 
 func _toggle_3d_move() -> void:
 	move_mode_3d = not move_mode_3d
@@ -368,7 +369,8 @@ func _pick_furniture(screen_pos: Vector2) -> void:
 	var best_distance := 90.0
 	for i in range(furniture.size()):
 		var p: Vector2 = furniture[i].get("position", Vector2.ZERO)
-		var world_pos := Vector3(p.x, 0.8, p.y)
+		var floor_y := float(current_floor) * (WALL_HEIGHT + 0.22)
+		var world_pos := Vector3(p.x, floor_y + 0.8, p.y)
 		if view_camera.is_position_behind(world_pos):
 			continue
 		var d := view_camera.unproject_position(world_pos).distance_to(screen_pos)
@@ -494,6 +496,7 @@ func _rebuild_3d() -> void:
 			crown.rotation.y = -angle
 		for item in floor_data.get("furniture", []):
 			_add_furniture(root, item, base_y)
+	_update_camera()
 	if floors.size() > 1:
 		status_label.text = "3D • показаны все этажи: %d" % floors.size()
 
