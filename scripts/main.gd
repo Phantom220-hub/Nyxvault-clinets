@@ -62,6 +62,21 @@ func _make_startup_overlay() -> Control:
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(background)
+	var backdrop_path := "res://1794155880479.jpg"
+	if ResourceLoader.exists(backdrop_path):
+		var backdrop := TextureRect.new()
+		backdrop.texture = load(backdrop_path)
+		backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		backdrop.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.add_child(backdrop)
+		backdrop.move_to_front()
+		var shade := ColorRect.new()
+		shade.color = Color(0.015, 0.035, 0.055, 0.48)
+		shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.add_child(shade)
 	var glow := ColorRect.new()
 	glow.color = Color("#102D39")
 	glow.anchor_left = 0.12
@@ -112,8 +127,8 @@ func _show_home_menu() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	menu.add_child(center)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(0, 610)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.custom_minimum_size = Vector2(460, 520)
+	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	card.add_theme_stylebox_override("panel", _style(Color("#142330"), 24))
 	center.add_child(card)
 	var stack := VBoxContainer.new()
