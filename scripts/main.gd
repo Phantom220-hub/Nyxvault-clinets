@@ -25,6 +25,8 @@ var preview_last_pos := Vector2.ZERO
 var pending_opening := ""
 var floors: Array[Dictionary] = []
 var current_floor := 0
+var move_mode_3d := false
+var material_theme := 0
 
 func _ready() -> void:
 	floors = [{"walls": [], "furniture": []}]
@@ -87,6 +89,8 @@ func _build_interface() -> void:
 	_add_button(tools, "+ ЭТАЖ", _add_floor, false)
 	_add_button(tools, "ЭТАЖ ←", func(): _switch_floor(-1), false)
 	_add_button(tools, "ЭТАЖ →", func(): _switch_floor(1), false)
+	_add_button(tools, "MOVE 3D", _toggle_3d_move, false)
+	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
 	object_menu = PopupMenu.new()
 	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4]]:
 		object_menu.add_item(pair[0], pair[1])
@@ -295,22 +299,46 @@ func _on_preview_input(event: InputEvent) -> void:
 		if event.pressed:
 			preview_dragging = true
 			preview_last_pos = event.position
+			if move_mode_3d:
+				_pick_furniture(event.position)
 		else:
-			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0:
+			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0 and not move_mode_3d:
 				_pick_furniture(event.position)
 			preview_dragging = false
 	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and preview_dragging:
 		var delta := event.position - preview_last_pos
 		preview_last_pos = event.position
-		camera_yaw -= delta.x * 0.008
-		camera_pitch -= delta.y * 0.006
-		_update_camera()
+		if move_mode_3d and selected_furniture >= 0:
+			var hit: Variant = _screen_to_floor(event.position)
+			if hit is Vector3:
+				furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
+				_rebuild_3d()
+		else:
+			camera_yaw -= delta.x * 0.008
+			camera_pitch -= delta.y * 0.006
+			_update_camera()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
 		camera_distance -= 1.0
 		_update_camera()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		camera_distance += 1.0
 		_update_camera()
+
+func _screen_to_floor(screen_pos: Vector2) -> Variant:
+	var origin := view_camera.project_ray_origin(screen_pos)
+	var direction := view_camera.project_ray_normal(screen_pos)
+	return Plane(Vector3.UP, 0.0).intersects_ray(origin, direction)
+
+func _toggle_3d_move() -> void:
+	move_mode_3d = not move_mode_3d
+	status_label.text = "3D: перетаскивайте выбранную мебель" if move_mode_3d else "3D: перетаскивание камеры"
+
+func _cycle_material_theme() -> void:
+	material_theme = (material_theme + 1) % 3
+	if is_3d:
+		_rebuild_3d()
+	var labels := ["Светлый камень", "Тёплое дерево", "Современный серый"]
+	status_label.text = "Материалы: " + labels[material_theme]
 
 func _pick_furniture(screen_pos: Vector2) -> void:
 	if furniture.is_empty() or not is_instance_valid(view_camera):
@@ -388,13 +416,15 @@ func _rebuild_3d() -> void:
 	var root := Node3D.new()
 	root.add_to_group("generated")
 	preview_world.add_child(root)
-	var floor_mat := _mat(Color("#D9D2C4"), 0.95)
+	var floor_colors := [Color("#D9D2C4"), Color("#9A7658"), Color("#707B83")]
+	var wall_colors := [Color("#F0E9DC"), Color("#D8C3A5"), Color("#C7CED2")]
+	var floor_mat := _mat(floor_colors[material_theme], 0.95)
 	var grid_mat := _mat(Color("#B8B1A4"), 0.8)
 	_box(root, Vector3(24, 0.12, 24), Vector3(0, -0.12, 0), floor_mat)
 	for i in range(-12, 13):
 		_box(root, Vector3(0.012, 0.006, 24), Vector3(i, -0.055, 0), grid_mat)
 		_box(root, Vector3(24, 0.006, 0.012), Vector3(0, -0.054, i), grid_mat)
-	var wall_mat := _mat(Color("#F0E9DC"), 0.82)
+	var wall_mat := _mat(wall_colors[material_theme], 0.82)
 	var trim_mat := _mat(Color("#BDAA8F"), 0.6)
 	for wall in walls:
 		var a: Vector2 = wall.a
@@ -447,7 +477,8 @@ func _add_furniture(root: Node3D, item: Dictionary) -> void:
 		var marker_mesh := _box(group, Vector3(2.5, 0.035, 2.5), Vector3(0, 0.025, 0), marker_mat)
 		marker_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var c := Vector3.ZERO
-	var wood := _mat(Color("#8B6549"), 0.5)
+	var wood_colors := [Color("#8B6549"), Color("#B98B5E"), Color("#555F68")]
+	var wood := _mat(wood_colors[material_theme], 0.5)
 	var fabric := _mat(Color("#477E83"), 0.95)
 	var soft := _mat(Color("#B7D0C8"), 0.95)
 	var metal := _mat(Color("#333E47"), 0.35)
