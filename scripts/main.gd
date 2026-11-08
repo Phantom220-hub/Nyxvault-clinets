@@ -90,6 +90,7 @@ func _make_startup_overlay() -> Control:
 
 func _show_startup_splash() -> void:
 	var splash := _make_startup_overlay()
+	splash.modulate.a = 0.0
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	splash.add_child(center)
@@ -102,24 +103,40 @@ func _show_startup_splash() -> void:
 	mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mark.add_theme_font_size_override("font_size", 104)
 	mark.add_theme_color_override("font_color", ACCENT)
+	mark.pivot_offset = Vector2(64, 64)
+	mark.scale = Vector2(0.55, 0.55)
 	stack.add_child(mark)
 	var title := Label.new()
 	title.text = "DREAMHOUSE 3D"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", TEXT)
+	title.modulate.a = 0.0
 	stack.add_child(title)
 	var subtitle := Label.new()
 	subtitle.text = "АРХИТЕКТУРА • 2D • 3D"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 12)
 	subtitle.add_theme_color_override("font_color", MUTED)
+	subtitle.modulate.a = 0.0
 	stack.add_child(subtitle)
+
+	var intro := create_tween()
+	intro.set_parallel(true)
+	intro.tween_property(splash, "modulate:a", 1.0, 0.45)
+	intro.tween_property(mark, "scale", Vector2.ONE, 0.75).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	intro.tween_property(mark, "rotation", 0.0, 0.65).from(-0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	intro.tween_property(title, "modulate:a", 1.0, 0.55).set_delay(0.2)
+	intro.tween_property(subtitle, "modulate:a", 1.0, 0.55).set_delay(0.38)
 	await get_tree().create_timer(1.8).timeout
+	if not is_instance_valid(splash):
+		return
+	var outro := create_tween()
+	outro.tween_property(splash, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await outro.finished
 	if is_instance_valid(splash):
 		splash.queue_free()
 	_show_home_menu()
-
 
 func _show_home_menu() -> void:
 	var menu := _make_startup_overlay()
