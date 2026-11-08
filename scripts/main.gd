@@ -488,7 +488,7 @@ func _on_preview_input(event: InputEvent) -> void:
 					_pick_furniture(_to_viewport_position(event.position))
 			preview_dragging = false
 	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and preview_dragging:
-		var delta := event.position - preview_last_pos
+		var delta: Vector2 = event.position - preview_last_pos
 		preview_last_pos = event.position
 		if move_mode_3d and selected_furniture >= 0:
 			var hit: Variant = _screen_to_floor(_to_viewport_position(event.position))
