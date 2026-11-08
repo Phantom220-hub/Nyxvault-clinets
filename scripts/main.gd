@@ -2097,6 +2097,9 @@ func _open_project_manager() -> void:
 	var delete_button := Button.new()
 	delete_button.text = "УДАЛИТЬ"
 	row.add_child(delete_button)
+	var duplicate_button := Button.new()
+	duplicate_button.text = "КОПИЯ"
+	row.add_child(duplicate_button)
 	var refresh_button := Button.new()
 	refresh_button.text = "ОБНОВИТЬ СПИСОК"
 	root.add_child(refresh_button)
@@ -2166,6 +2169,25 @@ func _open_project_manager() -> void:
 			refresh.call()
 		else:
 			hint.text = "Не удалось удалить проект. Код: %d" % error
+	)
+	duplicate_button.pressed.connect(func():
+		if project_select.item_count == 0 or project_select.selected < 0:
+			hint.text = "Выберите проект для копирования."
+			return
+		var selected_name := project_select.get_item_text(project_select.selected)
+		var new_name := _safe_project_name(name_input.text)
+		if new_name.is_empty() or new_name == selected_name:
+			hint.text = "Введите новое имя копии."
+			return
+		var destination := _named_project_path(new_name)
+		if FileAccess.file_exists(destination):
+			hint.text = "Проект с таким именем уже существует."
+			return
+		if _copy_user_file(_named_project_path(selected_name), destination):
+			hint.text = "Создана копия: " + new_name
+			refresh.call()
+		else:
+			hint.text = "Не удалось скопировать проект."
 	)
 	refresh.call()
 	window.popup_centered()
