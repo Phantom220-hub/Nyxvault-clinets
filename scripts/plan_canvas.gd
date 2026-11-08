@@ -376,6 +376,125 @@ func get_selected_wall() -> Dictionary:
 		return {}
 	return walls[selected_wall].duplicate(true)
 
+
+func add_wall_by_dimensions(start_mm: Vector2, length_mm: float, angle_degrees: float, thickness_mm: float = 150.0, height_mm: float = 2800.0) -> bool:
+	if length_mm < 200.0 or length_mm > 100000.0:
+		return false
+	var start_px := Vector2(size.x * 0.5, size.y * 0.5) + Vector2(Units.mm_to_pixels(start_mm.x), Units.mm_to_pixels(start_mm.y))
+	var direction := Vector2.from_angle(deg_to_rad(angle_degrees))
+	var end_px := start_px + direction * Units.mm_to_pixels(length_mm)
+	var new_wall := {
+		"a": start_px,
+		"b": end_px,
+		"thickness_mm": clampf(thickness_mm, 50.0, 1000.0),
+		"height_mm": clampf(height_mm, 1800.0, 10000.0),
+		"load_bearing": false,
+		"opening": ""
+	}
+	if not Geometry.valid_wall(new_wall):
+		return false
+	_record_history()
+	walls.append(new_wall)
+	selected_wall = walls.size() - 1
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+
+func split_selected_wall_at_mm(distance_mm: float) -> bool:
+	if selected_wall < 0 or selected_wall >= walls.size():
+		return false
+	var result := Geometry.split_wall_at_distance(walls, selected_wall, Units.mm_to_pixels(distance_mm))
+	if not bool(result.get("ok", false)):
+		return false
+	_record_history()
+	walls = result["walls"]
+	selected_wall = int(result.get("new_index", selected_wall + 1))
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+
+func merge_selected_wall_with_neighbor() -> bool:
+	if selected_wall < 0 or selected_wall >= walls.size():
+		return false
+	var result := Geometry.merge_collinear_walls(walls, selected_wall)
+	if not bool(result.get("ok", false)):
+		return false
+	_record_history()
+	walls = result["walls"]
+	selected_wall = int(result.get("merged_index", selected_wall))
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+
+func duplicate_selected_wall(offset_mm: Vector2 = Vector2(250.0, 250.0)) -> bool:
+	if selected_wall < 0 or selected_wall >= walls.size():
+		return false
+	var source: Dictionary = walls[selected_wall]
+	var offset_px := Vector2(Units.mm_to_pixels(offset_mm.x), Units.mm_to_pixels(offset_mm.y))
+	var copied := Geometry.translated(source, offset_px)
+	_record_history()
+	walls.append(copied)
+	selected_wall = walls.size() - 1
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+
+func mirror_selected_wall() -> bool:
+	if selected_wall < 0 or selected_wall >= walls.size():
+		return false
+	var source: Dictionary = walls[selected_wall]
+	var mirrored: Dictionary = source.duplicate(true)
+	var axis_x := size.x * 0.5
+	var a: Vector2 = source.get("a", Vector2.ZERO)
+	var b: Vector2 = source.get("b", Vector2.ZERO)
+	mirrored["a"] = Vector2(2.0 * axis_x - a.x, a.y)
+	mirrored["b"] = Vector2(2.0 * axis_x - b.x, b.y)
+	_record_history()
+	walls.append(mirrored)
+	selected_wall = walls.size() - 1
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+
+func array_selected_wall(copy_count: int, spacing_mm: float) -> bool:
+	if selected_wall < 0 or selected_wall >= walls.size() or copy_count < 1 or copy_count > 20 or spacing_mm <= 0.0:
+		return false
+	var source: Dictionary = walls[selected_wall]
+	var a: Vector2 = source.get("a", Vector2.ZERO)
+	var b: Vector2 = source.get("b", Vector2.ZERO)
+	var direction := (b - a).normalized()
+	if direction.length_squared() < 0.001:
+		return false
+	var normal := Vector2(-direction.y, direction.x)
+	var offset := normal * Units.mm_to_pixels(spacing_mm)
+	_record_history()
+	for index in range(1, copy_count + 1):
+		walls.append(Geometry.translated(source, offset * float(index)))
+	selected_wall = walls.size() - 1
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+
+func resolve_wall_intersections() -> Dictionary:
+	if walls.size() < 2:
+		return {"ok": true, "changed": false, "count": walls.size()}
+	var result := Geometry.split_all_intersections(walls)
+	if not bool(result.get("ok", false)):
+		return result
+	if bool(result.get("changed", false)):
+		_record_history()
+		walls = result["walls"]
+		selected_wall = -1
+		walls_changed.emit()
+		queue_redraw()
+	return {"ok": true, "changed": bool(result.get("changed", false)), "count": walls.size()}
+
 func _record_history() -> void:
 	undo_history.append(walls.duplicate(true))
 	if undo_history.size() > MAX_HISTORY:
