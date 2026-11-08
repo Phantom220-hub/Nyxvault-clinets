@@ -33,6 +33,9 @@ var start_point := Vector2.ZERO
 var current_point := Vector2.ZERO
 var grid_size := 32.0
 var snap_enabled := true
+var angle_snap_enabled := true
+var angle_snap_degrees := 15.0
+var drag_start_walls: Array[Dictionary] = []
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -91,6 +94,10 @@ func _draw() -> void:
 		draw_circle(start_point, 7.0, PREVIEW_COLOR)
 		draw_circle(current_point, 7.0, PREVIEW_COLOR)
 
+func set_angle_snap_enabled(enabled: bool) -> void:
+	angle_snap_enabled = enabled
+	queue_redraw()
+
 func _snap(p: Vector2) -> Vector2:
 	var point := Geometry.snap_point(p, grid_size) if snap_enabled else p
 	# Endpoint snapping makes wall intersections share exact coordinates.
@@ -103,6 +110,12 @@ func _snap(p: Vector2) -> Vector2:
 				best = distance
 				nearest = endpoint
 	return nearest
+
+func _constrained_point(raw_point: Vector2) -> Vector2:
+	var point := _snap(raw_point)
+	if angle_snap_enabled:
+		point = Geometry.constrain_angle(start_point, point, angle_snap_degrees)
+	return _snap(point)
 
 func set_tool_mode(mode: String) -> void:
 	tool_mode = "select" if mode == "select" else "draw"
@@ -118,7 +131,7 @@ func _gui_input(event: InputEvent) -> void:
 			_pointer_up(event.position)
 	elif event is InputEventMouseMotion:
 		if drawing:
-			current_point = _snap(event.position)
+			current_point = _constrained_point(event.position)
 			queue_redraw()
 		elif dragging_wall:
 			_pointer_drag(event.position)
@@ -129,7 +142,7 @@ func _gui_input(event: InputEvent) -> void:
 			_pointer_up(event.position)
 	elif event is InputEventScreenDrag:
 		if drawing:
-			current_point = _snap(event.position)
+			current_point = _constrained_point(event.position)
 			queue_redraw()
 		elif dragging_wall:
 			_pointer_drag(event.position)
@@ -155,6 +168,7 @@ func _pointer_down(point: Vector2) -> void:
 			drag_history_recorded = false
 			drag_start_pointer = point
 			drag_start_wall = wall.duplicate(true)
+			drag_start_walls = walls.duplicate(true)
 	accept_event()
 	queue_redraw()
 
@@ -164,23 +178,60 @@ func _pointer_drag(point: Vector2) -> void:
 	if not drag_history_recorded:
 		_record_history()
 		drag_history_recorded = true
-	var wall: Dictionary = walls[selected_wall].duplicate(true)
-	if drag_endpoint == 0:
-		wall.a = _snap(point)
-	elif drag_endpoint == 1:
-		wall.b = _snap(point)
+	var wall: Dictionary = drag_start_wall.duplicate(true)
+	if drag_endpoint == 0 or drag_endpoint == 1:
+		var old_point: Vector2 = wall.a if drag_endpoint == 0 else wall.b
+		var new_point := _snap(point)
+		if old_point.distance_to(new_point) < 0.001:
+			return
+		if drag_endpoint == 0:
+			wall.a = new_point
+		else:
+			wall.b = new_point
+		walls[selected_wall] = wall
+		for i in range(walls.size()):
+			if i == selected_wall:
+				continue
+			var connected: Dictionary = walls[i].duplicate(true)
+			if (connected.a as Vector2).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
+				connected.a = new_point
+			if (connected.b as Vector2).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
+				connected.b = new_point
+			walls[i] = connected
 	else:
 		var original_a: Vector2 = drag_start_wall.get("a", wall.a)
-		var original_b: Vector2 = drag_start_wall.get("b", wall.b)
 		var desired_a := original_a + (point - drag_start_pointer)
-		var moved_a := _snap(desired_a)
-		var offset := moved_a - original_a
-		wall.a = original_a + offset
-		wall.b = original_b + offset
-	if not Geometry.valid_wall(wall):
+		var offset := _snap(desired_a) - original_a
+		walls = _translated_connected_component(selected_wall, offset)
+	if not Geometry.valid_wall(walls[selected_wall]):
+		walls = drag_start_walls.duplicate(true)
 		return
-	walls[selected_wall] = wall
 	queue_redraw()
+
+func _translated_connected_component(root_index: int, offset: Vector2) -> Array[Dictionary]:
+	var result: Array[Dictionary] = drag_start_walls.duplicate(true)
+	if root_index < 0 or root_index >= result.size():
+		return result
+	var visited: Dictionary = {root_index: true}
+	var queue: Array[int] = [root_index]
+	while not queue.is_empty():
+		var current: int = queue.pop_front()
+		var current_wall: Dictionary = drag_start_walls[current]
+		for candidate in range(drag_start_walls.size()):
+			if visited.has(candidate):
+				continue
+			var other: Dictionary = drag_start_walls[candidate]
+			var touches := false
+			for endpoint_a in [current_wall.a, current_wall.b]:
+				for endpoint_b in [other.a, other.b]:
+					if endpoint_a.distance_to(endpoint_b) <= Geometry.JOIN_TOLERANCE_PX:
+						touches = true
+			if touches:
+				visited[candidate] = true
+				queue.append(candidate)
+	for index in visited.keys():
+		result[int(index)] = Geometry.translated(drag_start_walls[int(index)], offset)
+	return result
 
 func _pointer_up(point: Vector2) -> void:
 	if drawing:
@@ -197,6 +248,7 @@ func _pointer_up(point: Vector2) -> void:
 		dragging_wall = false
 		drag_endpoint = -1
 		drag_start_wall.clear()
+		drag_start_walls.clear()
 		drag_history_recorded = false
 		walls_changed.emit()
 	accept_event()
