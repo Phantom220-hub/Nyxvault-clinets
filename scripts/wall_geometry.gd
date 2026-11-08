@@ -56,3 +56,13 @@ static func snap_point(point: Vector2, grid: float) -> Vector2:
 	if grid <= 0.0:
 		return point
 	return (point / grid).round() * grid
+
+static func constrain_angle(origin: Vector2, point: Vector2, increment_degrees: float = 15.0) -> Vector2:
+	if increment_degrees <= 0.0:
+		return point
+	var delta := point - origin
+	if delta.length_squared() <= 0.0001:
+		return point
+	var increment := deg_to_rad(increment_degrees)
+	var angle := roundf(delta.angle() / increment) * increment
+	return origin + Vector2.from_angle(angle) * delta.length()
