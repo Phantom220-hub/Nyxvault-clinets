@@ -61,6 +61,70 @@ func _initialize() -> void:
 		face_area_total += Geometry.polygon_area(face)
 	assert(is_equal_approx(face_area_total, 20000.0))
 
+
+	# Split a wall while retaining all non-geometric wall properties.
+	var split_source := {"a": Vector2(0, 0), "b": Vector2(200, 0), "thickness_mm": 150.0, "height_mm": 2800.0, "opening": ""}
+	var split_result := Geometry.split_wall_at_distance([split_source], 0, 80.0)
+	assert(split_result.ok)
+	assert(split_result.walls.size() == 2)
+	assert(split_result.walls[0].a == Vector2(0, 0))
+	assert(split_result.walls[0].b == Vector2(80, 0))
+	assert(split_result.walls[1].a == Vector2(80, 0))
+	assert(split_result.walls[1].b == Vector2(200, 0))
+	assert(is_equal_approx(split_result.walls[0].thickness_mm, 150.0))
+
+	# A T-junction nodes the long wall into two connected segments.
+	var t_junction: Array = [
+		{"a": Vector2(0, 0), "b": Vector2(200, 0)},
+		{"a": Vector2(100, 0), "b": Vector2(100, 100)}
+	]
+	var t_result := Geometry.split_all_intersections(t_junction)
+	assert(t_result.ok)
+	assert(t_result.changed)
+	assert(t_result.walls.size() == 3)
+	assert(t_result.walls[0].b == Vector2(100, 0))
+	assert(t_result.walls[1].a == Vector2(100, 0))
+	assert(t_result.walls[2].a == Vector2(100, 0))
+
+	# Two crossing walls are split on both axes into four connected parts.
+	var cross_walls: Array = [
+		{"a": Vector2(0, 100), "b": Vector2(200, 100)},
+		{"a": Vector2(100, 0), "b": Vector2(100, 200)}
+	]
+	var cross_result := Geometry.split_all_intersections(cross_walls)
+	assert(cross_result.ok)
+	assert(cross_result.walls.size() == 4)
+	for segment in cross_result.walls:
+		assert(Geometry.valid_wall(segment))
+
+	# Never split an opening into two invalid partial openings.
+	var opening_wall := {"a": Vector2(0, 0), "b": Vector2(240, 0), "opening": "door", "opening_width_mm": 1000.0, "opening_offset_mm": 2500.0, "opening_height_mm": 2050.0}
+	var opening_cut := Geometry.split_all_intersections([
+		opening_wall,
+		{"a": Vector2(120, -100), "b": Vector2(120, 100)}
+	])
+	assert(not opening_cut.ok)
+	assert(opening_cut.error == "intersection_crosses_opening")
+
+	# Merge two contiguous collinear walls without discarding metadata.
+	var merge_walls: Array = [
+		{"a": Vector2(0, 0), "b": Vector2(100, 0), "thickness_mm": 150.0, "height_mm": 2800.0, "load_bearing": true, "opening": ""},
+		{"a": Vector2(100, 0), "b": Vector2(200, 0), "thickness_mm": 150.0, "height_mm": 2800.0, "load_bearing": true, "opening": ""}
+	]
+	var merge_result := Geometry.merge_collinear_walls(merge_walls, 0)
+	assert(merge_result.ok)
+	assert(merge_result.walls.size() == 1)
+	assert(merge_result.walls[0].a == Vector2(0, 0))
+	assert(merge_result.walls[0].b == Vector2(200, 0))
+	assert(merge_result.walls[0].load_bearing)
+
+	# Different wall properties must not be silently merged.
+	var incompatible_merge := Geometry.merge_collinear_walls([
+		{"a": Vector2(0, 0), "b": Vector2(100, 0), "thickness_mm": 150.0},
+		{"a": Vector2(100, 0), "b": Vector2(200, 0), "thickness_mm": 200.0}
+	], 0)
+	assert(not incompatible_merge.ok)
+
 	var invalid := {"a": Vector2.ZERO, "b": Vector2(1.0, 1.0)}
 	assert(not Geometry.valid_wall(invalid))
 	print("DreamHouse geometry/unit tests passed")
