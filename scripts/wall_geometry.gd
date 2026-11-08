@@ -5,7 +5,9 @@ const JOIN_TOLERANCE_PX := 12.0
 const MIN_WALL_LENGTH_PX := 8.0
 
 static func length_px(wall: Dictionary) -> float:
-	return (wall.get("a", Vector2.ZERO) as Vector2).distance_to(wall.get("b", Vector2.ZERO) as Vector2)
+	var a: Vector2 = wall.get("a", Vector2.ZERO)
+	var b: Vector2 = wall.get("b", Vector2.ZERO)
+	return a.distance_to(b)
 
 static func direction(wall: Dictionary) -> Vector2:
 	var a: Vector2 = wall.get("a", Vector2.ZERO)
@@ -25,8 +27,10 @@ static func distance_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float
 
 static func translated(wall: Dictionary, offset: Vector2) -> Dictionary:
 	var result := wall.duplicate(true)
-	result["a"] = (wall.get("a", Vector2.ZERO) as Vector2) + offset
-	result["b"] = (wall.get("b", Vector2.ZERO) as Vector2) + offset
+	var a: Vector2 = wall.get("a", Vector2.ZERO)
+	var b: Vector2 = wall.get("b", Vector2.ZERO)
+	result["a"] = a + offset
+	result["b"] = b + offset
 	return result
 
 static func resized_to_length(wall: Dictionary, length_px: float) -> Dictionary:
