@@ -73,6 +73,7 @@ func _build_interface() -> void:
 	scroll.add_child(tools)
 	_add_button(tools, "2D ПЛАН", _show_plan, true)
 	_add_button(tools, "РИСОВАТЬ СТЕНЫ", _wall_draw_mode, false)
+	_add_button(tools, "УГОЛ 15°: ВКЛ", _toggle_angle_snap, false)
 	_add_button(tools, "ВЫБРАТЬ СТЕНУ", _wall_select_mode, false)
 	_add_button(tools, "ПАРАМЕТРЫ СТЕНЫ", _edit_selected_wall, false)
 	_add_button(tools, "УДАЛИТЬ СТЕНУ", _delete_selected_wall, false)
@@ -217,6 +218,10 @@ func _on_object_selected(id: int) -> void:
 func _set_opening(kind: String) -> void:
 	pending_opening = kind
 	status_label.text = "Следующая стена: " + ("проём двери" if kind == "door" else "проём окна" if kind == "window" else "без проёма")
+
+func _toggle_angle_snap() -> void:
+	plan_canvas.set_angle_snap_enabled(not plan_canvas.angle_snap_enabled)
+	status_label.text = "Ограничение угла 15°: " + ("включено" if plan_canvas.angle_snap_enabled else "выключено")
 
 func _wall_draw_mode() -> void:
 	plan_canvas.set_tool_mode("draw")
