@@ -972,7 +972,7 @@ func _toggle_camera_projection() -> void:
 
 func _on_preview_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		var touch_id := event.index
+		var touch_id: int = event.index
 		if event.pressed:
 			preview_touches[touch_id] = event.position
 			if preview_touches.size() == 2:
@@ -1601,6 +1601,7 @@ func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0, floor_
 	var wood := _mat(wood_colors[material_theme], 0.5)
 	var fabric := _mat(Color("#477E83"), 0.95)
 	var soft := _mat(Color("#B7D0C8"), 0.95)
+	var glass := _mat(Color("#A9D9E8", 0.55), 0.18)
 	var metal := _mat(Color("#333E47"), 0.35)
 	match kind:
 		0:
@@ -2006,7 +2007,7 @@ func _show_tutorial() -> void:
 	window.popup_centered()
 
 func _ensure_projects_directory() -> void:
-	DirAccess.make_dir_recursive("user://projects")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://projects"))
 
 
 func _safe_project_name(raw_name: String) -> String:
@@ -2416,11 +2417,11 @@ func _read_import_file(path: String) -> void:
 		return
 	var contents := source.get_as_text()
 	source.close()
-	var decoded := ProjectStorage.decode_document(contents)
+	var decoded: Dictionary = ProjectStorage.decode_document(contents)
 	if not bool(decoded.get("ok", false)):
 		status_label.text = "Импорт отменён: некорректный проект (%s)" % str(decoded.get("error", "unknown"))
 		return
-	var import_result := ProjectStorage.write_json_atomic("user://dreamhouse_project.json", decoded.data)
+	var import_result: Dictionary = ProjectStorage.write_json_atomic("user://dreamhouse_project.json", decoded.data)
 	if not bool(import_result.get("ok", false)):
 		status_label.text = "Не удалось сохранить импорт: %s" % str(import_result.get("error", "unknown"))
 		return
@@ -2447,7 +2448,7 @@ func _save_project() -> void:
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
 		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "visible": bool(floor.get("visible", true)), "walls": fw, "furniture": ff})
 	var data := {"version": ProjectStorage.CURRENT_SCHEMA_VERSION, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}, "roof_style": roof_style, "site": {"enabled": site_enabled, "width_m": site_width_m, "depth_m": site_depth_m}}
-	var save_result := ProjectStorage.write_json_atomic("user://dreamhouse_project.json", data)
+	var save_result: Dictionary = ProjectStorage.write_json_atomic("user://dreamhouse_project.json", data)
 	if not bool(save_result.get("ok", false)):
 		status_label.text = "Ошибка сохранения проекта: %s" % str(save_result.get("error", "unknown"))
 		return
@@ -2462,7 +2463,7 @@ func _load_project() -> void:
 	if not FileAccess.file_exists("user://dreamhouse_project.json"):
 		status_label.text = "Сохранённый проект не найден"
 		return
-	var loaded := ProjectStorage.read_json("user://dreamhouse_project.json", true)
+	var loaded: Dictionary = ProjectStorage.read_json("user://dreamhouse_project.json", true)
 	if not bool(loaded.get("ok", false)):
 		status_label.text = "Файл проекта повреждён или недоступен: %s" % str(loaded.get("error", "unknown"))
 		return
