@@ -33,11 +33,15 @@ func _draw() -> void:
 		var center := Vector2(size.x * 0.5 + world_pos.x * 48.0, size.y * 0.5 + world_pos.y * 48.0)
 		var kind := int(item.get("kind", 0))
 		var dims := [Vector2(92, 48), Vector2(58, 92), Vector2(72, 48), Vector2(42, 42), Vector2(58, 32)]
-		var rect := Rect2(center - dims[clampi(kind, 0, 4)] * 0.5, dims[clampi(kind, 0, 4)])
+		var footprint: Vector2 = dims[clampi(kind, 0, 4)] * float(item.get("scale", 1.0))
+		var rotation := float(item.get("rotation", 0.0))
+		draw_set_transform(center, rotation, Vector2.ONE)
+		var rect := Rect2(-footprint * 0.5, footprint)
 		draw_rect(rect, Color("#52D6C7") if item_index == selected_furniture else Color("#B98B5E"), true)
 		draw_rect(rect, Color("#EAFBF8"), false, 2.0)
 		var labels := ["ДИВАН", "КРОВАТЬ", "СТОЛ", "КРЕСЛО", "ШКАФ"]
-		draw_string(ThemeDB.fallback_font, rect.position + Vector2(2, -4), labels[clampi(kind, 0, 4)], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#F2F6F8"))
+		draw_string(ThemeDB.fallback_font, Vector2(-footprint.x * 0.5 + 2, -footprint.y * 0.5 - 4), labels[clampi(kind, 0, 4)], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#F2F6F8"))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	for wall in walls:
 		draw_line(wall.a, wall.b, Color("#0A1118"), 13.0, true)
 		draw_line(wall.a, wall.b, WALL_COLOR, 8.0, true)
