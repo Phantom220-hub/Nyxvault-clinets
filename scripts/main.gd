@@ -258,7 +258,9 @@ func _edit_selected_wall() -> void:
 	length_input.min_value = 100.0
 	length_input.max_value = 50000.0
 	length_input.step = 10.0
-	length_input.value = Units.pixels_to_mm((wall.a as Vector2).distance_to(wall.b as Vector2))
+	var wall_a: Vector2 = wall.get("a", Vector2.ZERO)
+	var wall_b: Vector2 = wall.get("b", Vector2.ZERO)
+	length_input.value = Units.pixels_to_mm(wall_a.distance_to(wall_b))
 	_labeled_control(form, "Длина стены (mm)", length_input)
 	var thickness_input := SpinBox.new()
 	thickness_input.min_value = 50.0
@@ -333,6 +335,7 @@ func _clear() -> void:
 	walls.clear()
 	furniture.clear()
 	selected_furniture = -1
+	_snapshot_floor()
 	_sync_plan_furniture()
 	status_label.text = "План очищен"
 	if is_3d:
@@ -776,7 +779,8 @@ func _save_project() -> void:
 	var floor_data: Array = []
 	for floor in floors:
 		var fw: Array = []
-		for w in floor.get("walls", []): fw.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", "")})
+		for w in floor.get("walls", []):
+			fw.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false)})
 		var ff: Array = []
 		for item in floor.get("furniture", []):
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
@@ -831,6 +835,7 @@ func _load_project() -> void:
 		floors = [{"walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
 		current_floor = 0
 	plan_canvas.walls = walls.duplicate(true)
+	plan_canvas.selected_wall = -1
 	_sync_plan_furniture()
 	plan_canvas.queue_redraw()
 	status_label.text = "Загружено • этаж %d/%d • %d стен • %d объектов" % [current_floor + 1, floors.size(), walls.size(), furniture.size()]
