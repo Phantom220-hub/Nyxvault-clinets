@@ -31,6 +31,7 @@ var move_mode_3d := false
 var select_walls_3d := false
 var material_theme := 0
 var project_dialog: FileDialog
+var dimensions_enabled := true
 
 func _ready() -> void:
 	floors = [{"walls": [], "furniture": []}]
@@ -75,6 +76,7 @@ func _build_interface() -> void:
 	_add_button(tools, "2D ПЛАН", _show_plan, true)
 	_add_button(tools, "РИСОВАТЬ СТЕНЫ", _wall_draw_mode, false)
 	_add_button(tools, "УГОЛ 15°: ВКЛ", _toggle_angle_snap, false)
+	_add_button(tools, "РАЗМЕРЫ: ВКЛ", _toggle_dimensions, false)
 	_add_button(tools, "ВЫБРАТЬ СТЕНУ", _wall_select_mode, false)
 	_add_button(tools, "ПАРАМЕТРЫ СТЕНЫ", _edit_selected_wall, false)
 	_add_button(tools, "УДАЛИТЬ СТЕНУ", _delete_selected_wall, false)
@@ -223,6 +225,11 @@ func _set_opening(kind: String) -> void:
 func _toggle_angle_snap() -> void:
 	plan_canvas.set_angle_snap_enabled(not plan_canvas.angle_snap_enabled)
 	status_label.text = "Ограничение угла 15°: " + ("включено" if plan_canvas.angle_snap_enabled else "выключено")
+
+func _toggle_dimensions() -> void:
+	dimensions_enabled = not dimensions_enabled
+	plan_canvas.set_dimensions_visible(dimensions_enabled)
+	status_label.text = "Размерные линии: " + ("включены" if dimensions_enabled else "выключены")
 
 func _wall_draw_mode() -> void:
 	plan_canvas.set_tool_mode("draw")
