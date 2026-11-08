@@ -8,6 +8,12 @@ func _initialize() -> void:
 	assert(is_equal_approx(Units.mm_to_pixels(2500.0), 120.0))
 	assert(is_equal_approx(Units.pixels_to_metres(96.0), 2.0))
 
+	var level_data: Array = [
+		{"floor_height_mm": 3000.0, "slab_thickness_mm": 200.0, "walls": [{"height_mm": 3500.0}]},
+		{"floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": []}
+	]
+	assert(is_equal_approx(Units.floor_base_elevation(level_data, 1), 3.7))
+
 	var wall := {"a": Vector2(0.0, 0.0), "b": Vector2(100.0, 0.0)}
 	assert(Geometry.valid_wall(wall))
 	assert(is_equal_approx(Geometry.length_px(wall), 100.0))
