@@ -28,6 +28,8 @@ var preview_last_pos := Vector2.ZERO
 var preview_press_pos := Vector2.ZERO
 var preview_touches: Dictionary = {}
 var preview_pinch_distance := 0.0
+var preview_pinch_centroid := Vector2.ZERO
+var preview_was_pinching := false
 var camera_target_offset := Vector2.ZERO
 var pending_opening := ""
 var floors: Array[Dictionary] = []
@@ -960,6 +962,8 @@ func _on_preview_input(event: InputEvent) -> void:
 				var first_touch: Vector2 = touch_points[0]
 				var second_touch: Vector2 = touch_points[1]
 				preview_pinch_distance = first_touch.distance_to(second_touch)
+				preview_pinch_centroid = (first_touch + second_touch) * 0.5
+				preview_was_pinching = true
 				preview_dragging = false
 				return
 			if preview_touches.size() > 2:
@@ -974,7 +978,7 @@ func _on_preview_input(event: InputEvent) -> void:
 				_pick_furniture(_to_viewport_position(event.position))
 		else:
 			var pointer_movement := preview_press_pos.distance_to(event.position)
-			if preview_touches.size() == 1:
+			if not preview_was_pinching and preview_touches.size() == 1:
 				if edit_wall_ends_3d:
 					if pointer_movement >= 12.0 and not wall_3d_endpoint_pick.is_empty():
 						_move_wall_endpoint_from_3d(_to_viewport_position(event.position))
@@ -990,6 +994,8 @@ func _on_preview_input(event: InputEvent) -> void:
 						_pick_furniture(_to_viewport_position(event.position))
 			preview_touches.erase(touch_id)
 			preview_pinch_distance = 0.0
+			if preview_touches.is_empty():
+				preview_was_pinching = false
 			preview_dragging = false
 		return
 	if event is InputEventScreenDrag:
@@ -1000,10 +1006,14 @@ func _on_preview_input(event: InputEvent) -> void:
 			var first_point: Vector2 = points[0]
 			var second_point: Vector2 = points[1]
 			var distance_now := first_point.distance_to(second_point)
+			var centroid_now := (first_point + second_point) * 0.5
 			if preview_pinch_distance > 1.0:
 				camera_distance *= preview_pinch_distance / maxf(distance_now, 1.0)
+				var pan_delta := centroid_now - preview_pinch_centroid
+				camera_target_offset += Vector2(-pan_delta.x * cos(camera_yaw) + pan_delta.y * sin(camera_yaw), -pan_delta.x * sin(camera_yaw) - pan_delta.y * cos(camera_yaw)) * camera_distance * 0.002
 				_update_camera()
 			preview_pinch_distance = distance_now
+			preview_pinch_centroid = centroid_now
 			return
 		elif preview_touches.size() > 1:
 			return
