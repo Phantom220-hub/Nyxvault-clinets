@@ -1352,6 +1352,8 @@ func _start_autosave() -> void:
 
 func _autosave_project() -> void:
 	var previous_status := status_label.text if is_instance_valid(status_label) else ""
+	if FileAccess.file_exists("user://dreamhouse_autosave.json"):
+		_copy_user_file("user://dreamhouse_autosave.json", "user://dreamhouse_autosave_previous.json")
 	_save_project()
 	_copy_user_file("user://dreamhouse_project.json", "user://dreamhouse_autosave.json")
 	if is_instance_valid(status_label):
@@ -1430,7 +1432,10 @@ func _open_project_manager() -> void:
 			hint.text = "Введите название проекта."
 			return
 		_save_project()
-		if _copy_user_file("user://dreamhouse_project.json", _named_project_path(safe_name)):
+		var destination := _named_project_path(safe_name)
+		if FileAccess.file_exists(destination):
+			_copy_user_file(destination, destination + ".bak")
+		if _copy_user_file("user://dreamhouse_project.json", destination):
 			current_project_name = safe_name
 			hint.text = "Проект сохранён: " + safe_name
 			refresh.call()
@@ -1442,12 +1447,26 @@ func _open_project_manager() -> void:
 			hint.text = "Выберите проект из списка."
 			return
 		var selected_name := project_select.get_item_text(project_select.selected)
-		if _copy_user_file(_named_project_path(selected_name), "user://dreamhouse_project.json"):
+		var source_path := _named_project_path(selected_name)
+		var source := FileAccess.open(source_path, FileAccess.READ)
+		var valid_project := false
+		if source != null:
+			var parsed: Variant = JSON.parse_string(source.get_as_text())
+			source.close()
+			valid_project = parsed is Dictionary and parsed.get("walls", null) is Array
+		if not valid_project and FileAccess.file_exists(source_path + ".bak"):
+			source_path += ".bak"
+			var backup := FileAccess.open(source_path, FileAccess.READ)
+			if backup != null:
+				var parsed_backup: Variant = JSON.parse_string(backup.get_as_text())
+				backup.close()
+				valid_project = parsed_backup is Dictionary and parsed_backup.get("walls", null) is Array
+		if valid_project and _copy_user_file(source_path, "user://dreamhouse_project.json"):
 			current_project_name = selected_name
 			_load_project()
 			hint.text = "Открыт проект: " + selected_name
 		else:
-			hint.text = "Не удалось открыть проект."
+			hint.text = "Файл повреждён, резервная копия недоступна."
 	)
 	delete_button.pressed.connect(func():
 		if project_select.item_count == 0 or project_select.selected < 0:
@@ -1537,6 +1556,8 @@ func _save_project() -> void:
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
 		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "visible": bool(floor.get("visible", true)), "walls": fw, "furniture": ff})
 	var data := {"version": 6, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
+	if FileAccess.file_exists("user://dreamhouse_project.json"):
+		_copy_user_file("user://dreamhouse_project.json", "user://dreamhouse_project_previous.json")
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
 		status_label.text = "Ошибка сохранения"
@@ -1544,7 +1565,10 @@ func _save_project() -> void:
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
 	if not current_project_name.is_empty():
-		_copy_user_file("user://dreamhouse_project.json", _named_project_path(current_project_name))
+		var named_path := _named_project_path(current_project_name)
+		if FileAccess.file_exists(named_path):
+			_copy_user_file(named_path, named_path + ".bak")
+		_copy_user_file("user://dreamhouse_project.json", named_path)
 	status_label.text = "Сохранено • %d стен • %d объектов" % [walls.size(), furniture.size()]
 
 func _load_project() -> void:
