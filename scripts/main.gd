@@ -218,7 +218,7 @@ func _set_opening(kind: String) -> void:
 
 func _wall_draw_mode() -> void:
 	plan_canvas.set_tool_mode("draw")
-	status_label.text = "Инструмент стен: рисование • сетка 32 px = 0.667 m"
+	status_label.text = "Инструмент стен: рисование • шаг сетки 250 mm"
 
 func _wall_select_mode() -> void:
 	plan_canvas.set_tool_mode("select")
