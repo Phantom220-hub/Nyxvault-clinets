@@ -1,6 +1,7 @@
 extends Control
 const PlanCanvasScript = preload("res://scripts/plan_canvas.gd")
 const Units = preload("res://scripts/building_units.gd")
+const Geometry = preload("res://scripts/wall_geometry.gd")
 const WALL_HEIGHT := 2.8
 const PPM := 48.0
 const BG := Color("#101923")
@@ -831,50 +832,16 @@ func _switch_floor(direction: int) -> void:
 	status_label.text = "Этаж %d из %d" % [current_floor + 1, floors.size()]
 
 func _calculate_room_areas() -> void:
-	var graph: Dictionary = {}
-	for wall in walls:
-		var a: Vector2 = wall.a
-		var b: Vector2 = wall.b
-		if not graph.has(a): graph[a] = []
-		if not graph.has(b): graph[b] = []
-		if not graph[a].has(b): graph[a].append(b)
-		if not graph[b].has(a): graph[b].append(a)
-	var cycles: Array = []
-	var signatures: Dictionary = {}
-	for start in graph.keys():
-		var path: Array = [start]
-		_find_cycles(start, start, graph, path, signatures, cycles)
-	if cycles.is_empty():
-		status_label.text = "Замкнутых комнат не найдено • соедините стены в контур"
+	var faces := Geometry.find_bounded_faces(walls)
+	if faces.is_empty():
+		status_label.text = "Замкнутых помещений не найдено • проверьте точность соединения стен"
 		return
-	var areas: Array[float] = []
-	for polygon in cycles:
-		var twice_area := 0.0
-		for i in range(polygon.size()):
-			var a: Vector2 = polygon[i]
-			var b: Vector2 = polygon[(i + 1) % polygon.size()]
-			twice_area += a.x * b.y - b.x * a.y
-		areas.append(absf(twice_area) / 2.0 / (PPM * PPM))
-	areas.sort()
-	var total := 0.0
-	for area in areas: total += area
-	status_label.text = "Этаж %d • контуров: %d • площадь: %.2f м²" % [current_floor + 1, areas.size(), total]
-
-func _find_cycles(current: Vector2, start: Vector2, graph: Dictionary, path: Array, signatures: Dictionary, cycles: Array) -> void:
-	for neighbor in graph.get(current, []):
-		if neighbor == start and path.size() >= 3:
-			var keys: Array[String] = []
-			for point in path: keys.append("%.1f,%.1f" % [point.x, point.y])
-			keys.sort()
-			var signature := "|".join(keys)
-			if not signatures.has(signature):
-				signatures[signature] = true
-				cycles.append(path.duplicate())
-		elif not path.has(neighbor) and path.size() < 80:
-			path.append(neighbor)
-			_find_cycles(neighbor, start, graph, path, signatures, cycles)
-			path.pop_back()
-
+	var total_area_m2 := 0.0
+	var total_perimeter_m := 0.0
+	for face in faces:
+		total_area_m2 += Geometry.polygon_area(face) / (PPM * PPM)
+		total_perimeter_m += Geometry.polygon_perimeter(face) / PPM
+	status_label.text = "Этаж %d • помещений: %d • площадь: %.2f м² • периметры: %.2f м" % [current_floor + 1, faces.size(), total_area_m2, total_perimeter_m]
 
 func _export_project() -> void:
 	_save_project()
