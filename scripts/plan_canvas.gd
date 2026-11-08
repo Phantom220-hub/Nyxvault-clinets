@@ -251,6 +251,14 @@ func _gui_input(event: InputEvent) -> void:
 		else:
 			_pointer_up(_screen_to_canvas(event.position))
 		accept_event()
+	elif event is InputEventMouseButton and event.pressed and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		var anchor := event.position
+		var world_anchor := _screen_to_canvas(anchor)
+		var zoom_factor := 1.12 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12
+		view_zoom = clampf(view_zoom * zoom_factor, 0.45, 3.5)
+		view_pan = anchor - world_anchor * view_zoom
+		queue_redraw()
+		accept_event()
 	elif event is InputEventMouseMotion:
 		var canvas_point := _screen_to_canvas(event.position)
 		if drawing:
