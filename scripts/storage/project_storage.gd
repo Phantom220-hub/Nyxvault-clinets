@@ -51,7 +51,7 @@ static func migrate_document(source: Dictionary) -> Dictionary:
 				_migrate_v7_to_v8(data)
 			_:
 				return {"ok": false, "error": "missing_migration", "from_version": version}
-			version += 1
+		version += 1
 	data["version"] = CURRENT_SCHEMA_VERSION
 	var validation := validate_document(data)
 	if not bool(validation.get("ok", false)):
