@@ -2,20 +2,6 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "**.gd"
-      - "scripts/**"
-      - "**.tscn"
-      - "**.tres"
-      - "**.jpg"
-      - "**.jpeg"
-      - "**.png"
-      - "**.webp"
-      - "project.godot"
-      - "export_presets.cfg"
-      - ".github/workflows/android-apk.yml"
 
 concurrency:
   group: dreamhouse-android-${{ github.ref }}
