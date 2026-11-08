@@ -2,6 +2,8 @@ extends Control
 class_name PlanCanvas
 signal wall_created(a: Vector2, b: Vector2)
 var walls: Array[Dictionary] = []
+var furniture: Array[Dictionary] = []
+var selected_furniture := -1
 var drawing := false
 var start_point := Vector2.ZERO
 var current_point := Vector2.ZERO
@@ -25,6 +27,17 @@ func _draw() -> void:
 	for y in range(0, int(size.y) + step, step):
 		var major := (y / step) % 4 == 0
 		draw_line(Vector2(0, y), Vector2(size.x, y), GRID_MAJOR if major else GRID_MINOR, 1.4 if major else 0.7)
+	for item_index in range(furniture.size()):
+		var item: Dictionary = furniture[item_index]
+		var world_pos: Vector2 = item.get("position", Vector2.ZERO)
+		var center := Vector2(size.x * 0.5 + world_pos.x * 48.0, size.y * 0.5 + world_pos.y * 48.0)
+		var kind := int(item.get("kind", 0))
+		var dims := [Vector2(92, 48), Vector2(58, 92), Vector2(72, 48), Vector2(42, 42), Vector2(58, 32)]
+		var rect := Rect2(center - dims[clampi(kind, 0, 4)] * 0.5, dims[clampi(kind, 0, 4)])
+		draw_rect(rect, Color("#52D6C7") if item_index == selected_furniture else Color("#B98B5E"), true)
+		draw_rect(rect, Color("#EAFBF8"), false, 2.0)
+		var labels := ["ДИВАН", "КРОВАТЬ", "СТОЛ", "КРЕСЛО", "ШКАФ"]
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(2, -4), labels[clampi(kind, 0, 4)], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#F2F6F8"))
 	for wall in walls:
 		draw_line(wall.a, wall.b, Color("#0A1118"), 13.0, true)
 		draw_line(wall.a, wall.b, WALL_COLOR, 8.0, true)
