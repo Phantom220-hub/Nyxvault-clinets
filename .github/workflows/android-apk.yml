@@ -16,6 +16,10 @@ on:
       - "export_presets.cfg"
       - ".github/workflows/android-apk.yml"
 
+concurrency:
+  group: dreamhouse-android-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
