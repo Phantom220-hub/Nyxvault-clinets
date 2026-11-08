@@ -32,6 +32,10 @@ func _draw() -> void:
 		draw_circle(wall.b, 5.0, Color("#EAFBF8"))
 		var mid: Vector2 = (wall.a + wall.b) * 0.5
 		draw_string(ThemeDB.fallback_font, mid + Vector2(7, -10), "%.2f м" % (wall.a.distance_to(wall.b) / 48.0), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#D9F5F0"))
+		var opening := str(wall.get("opening", ""))
+		if opening == "door" or opening == "window":
+			var tag := "ДВЕРЬ" if opening == "door" else "ОКНО"
+			draw_string(ThemeDB.fallback_font, mid + Vector2(7, 15), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#FFC878"))
 	if drawing:
 		draw_line(start_point, current_point, PREVIEW_COLOR, 7.0, true)
 		draw_circle(start_point, 7.0, PREVIEW_COLOR)
