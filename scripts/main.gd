@@ -418,6 +418,7 @@ func _show_layers_dialog() -> void:
 	dialog.popup_centered()
 
 func _measure_mode() -> void:
+	_show_plan()
 	plan_canvas.set_tool_mode("measure")
 	status_label.text = "Измерение: коснитесь начальной и конечной точки"
 
@@ -1320,12 +1321,15 @@ func _setup_keyboard_shortcuts() -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if not (event is InputEventKey) or not event.pressed or event.echo or not event.ctrl_pressed:
+	if not (event is InputEventKey):
+		return
+	var key_event: InputEventKey = event
+	if not key_event.pressed or key_event.echo or not key_event.ctrl_pressed:
 		return
 	var focus := get_viewport().gui_get_focus_owner()
 	if focus is LineEdit or focus is SpinBox:
 		return
-	match event.keycode:
+	match key_event.keycode:
 		KEY_S:
 			_save_project()
 		KEY_O:
@@ -1340,7 +1344,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_show_3d()
 		_:
 			return
-	event.accept()
+	key_event.accept()
 
 
 func _show_tutorial() -> void:
