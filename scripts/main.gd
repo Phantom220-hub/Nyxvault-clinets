@@ -1155,7 +1155,7 @@ func _save_project() -> void:
 		var ff: Array = []
 		for item in floor.get("furniture", []):
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
-			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
+			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
 		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "walls": fw, "furniture": ff})
 	var data := {"version": 6, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
