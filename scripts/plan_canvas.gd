@@ -249,7 +249,7 @@ func set_selected_wall_properties(thickness_mm: float, height_mm: float, load_be
 	queue_redraw()
 	return true
 
-func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, sill_height_mm: float = 850.0) -> bool:
+func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, sill_height_mm: float = 850.0, opening_height_mm: float = 2050.0) -> bool:
 	if selected_wall < 0 or selected_wall >= walls.size():
 		return false
 	if kind != "" and kind != "door" and kind != "window":
@@ -272,6 +272,7 @@ func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, 
 		wall["opening"] = kind
 		wall["opening_width_mm"] = safe_width
 		wall["opening_offset_mm"] = safe_offset
+		wall["opening_height_mm"] = clampf(opening_height_mm, 300.0, 4000.0)
 		wall["sill_height_mm"] = clampf(sill_height_mm, 0.0, 2500.0)
 	walls[selected_wall] = wall
 	walls_changed.emit()
