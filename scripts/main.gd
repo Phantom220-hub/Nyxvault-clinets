@@ -1,5 +1,6 @@
 extends Control
 const PlanCanvasScript = preload("res://scripts/plan_canvas.gd")
+const Units = preload("res://scripts/building_units.gd")
 const WALL_HEIGHT := 2.8
 const PPM := 48.0
 const BG := Color("#101923")
@@ -70,6 +71,10 @@ func _build_interface() -> void:
 	tools.add_theme_constant_override("separation", 7)
 	scroll.add_child(tools)
 	_add_button(tools, "2D ПЛАН", _show_plan, true)
+	_add_button(tools, "РИСОВАТЬ СТЕНЫ", _wall_draw_mode, false)
+	_add_button(tools, "ВЫБРАТЬ СТЕНУ", _wall_select_mode, false)
+	_add_button(tools, "ПАРАМЕТРЫ СТЕНЫ", _edit_selected_wall, false)
+	_add_button(tools, "УДАЛИТЬ СТЕНУ", _delete_selected_wall, false)
 	_add_button(tools, "3D ВИД", _show_3d, false)
 	_add_button(tools, "ОБЪЕКТЫ +", _open_object_menu, false)
 	_add_button(tools, "UNDO", _undo, false)
@@ -107,6 +112,8 @@ func _build_interface() -> void:
 	plan_canvas.offset_right = -14
 	plan_canvas.offset_bottom = -100
 	plan_canvas.wall_created.connect(_on_wall_created)
+	plan_canvas.wall_selected.connect(_on_plan_wall_selected)
+	plan_canvas.walls_changed.connect(_on_plan_walls_changed)
 	add_child(plan_canvas)
 
 	preview = SubViewportContainer.new()
@@ -207,6 +214,87 @@ func _on_object_selected(id: int) -> void:
 func _set_opening(kind: String) -> void:
 	pending_opening = kind
 	status_label.text = "Следующая стена: " + ("проём двери" if kind == "door" else "проём окна" if kind == "window" else "без проёма")
+
+func _wall_draw_mode() -> void:
+	plan_canvas.set_tool_mode("draw")
+	status_label.text = "Инструмент стен: рисование • сетка 32 px = 0.667 m"
+
+func _wall_select_mode() -> void:
+	plan_canvas.set_tool_mode("select")
+	status_label.text = "Выбор стен: каснитесь стены, затем двигайте стену или её конец"
+
+func _on_plan_wall_selected(index: int) -> void:
+	if index < 0:
+		status_label.text = "Стена не выбрана"
+		return
+	var wall := plan_canvas.get_selected_wall()
+	var length_mm := Units.pixels_to_mm((wall.a as Vector2).distance_to(wall.b as Vector2))
+	status_label.text = "Стена %d • длина %.0f mm • толщина %.0f mm • высота %.0f mm" % [index + 1, length_mm, float(wall.get("thickness_mm", 150.0)), float(wall.get("height_mm", 2800.0))]
+
+func _on_plan_walls_changed() -> void:
+	walls = plan_canvas.walls.duplicate(true)
+	_snapshot_floor()
+	if is_3d:
+		_rebuild_3d()
+
+func _delete_selected_wall() -> void:
+	if plan_canvas.delete_selected_wall():
+		status_label.text = "Выбранная стена удалена"
+	else:
+		status_label.text = "Сначала выберите стену"
+
+func _edit_selected_wall() -> void:
+	var wall := plan_canvas.get_selected_wall()
+	if wall.is_empty():
+		status_label.text = "Сначала выберите стену в режиме ВЫБРАТЬ СТЕНУ"
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Параметры стены — миллиметры"
+	dialog.min_size = Vector2i(360, 330)
+	var form := VBoxContainer.new()
+	form.add_theme_constant_override("separation", 8)
+	dialog.add_child(form)
+	var length_input := SpinBox.new()
+	length_input.min_value = 100.0
+	length_input.max_value = 50000.0
+	length_input.step = 10.0
+	length_input.value = Units.pixels_to_mm((wall.a as Vector2).distance_to(wall.b as Vector2))
+	form.add_child(_labeled_control(form, "Длина стены (mm)", length_input))
+	var thickness_input := SpinBox.new()
+	thickness_input.min_value = 50.0
+	thickness_input.max_value = 1000.0
+	thickness_input.step = 10.0
+	thickness_input.value = float(wall.get("thickness_mm", 150.0))
+	form.add_child(_labeled_control(form, "Толщина стены (mm)", thickness_input))
+	var height_input := SpinBox.new()
+	height_input.min_value = 1800.0
+	height_input.max_value = 10000.0
+	height_input.step = 50.0
+	height_input.value = float(wall.get("height_mm", 2800.0))
+	form.add_child(_labeled_control(form, "Высота стены (mm)", height_input))
+	var bearing := CheckButton.new()
+	bearing.text = "Несущая стена (проектная метка)"
+	bearing.button_pressed = bool(wall.get("load_bearing", false))
+	form.add_child(bearing)
+	dialog.confirmed.connect(func():
+		var valid := plan_canvas.set_selected_wall_length_mm(length_input.value)
+		if valid:
+			plan_canvas.set_selected_wall_properties(thickness_input.value, height_input.value, bearing.button_pressed)
+			status_label.text = "Параметры стены обновлены • значения в mm"
+		else:
+			status_label.text = "Не удалось изменить длину стены"
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+func _labeled_control(parent: VBoxContainer, caption: String, control: Control) -> Control:
+	var row := VBoxContainer.new()
+	var label := Label.new()
+	label.text = caption
+	row.add_child(label)
+	row.add_child(control)
+	parent.add_child(row)
+	return row
 
 func _on_wall_created(_a: Vector2, _b: Vector2) -> void:
 	walls = plan_canvas.walls.duplicate(true)
@@ -465,8 +553,10 @@ func _rebuild_3d() -> void:
 			var b: Vector2 = wall.b
 			var mid := (a + b) * 0.5
 			var length := a.distance_to(b) / PPM
+			var wall_height := float(wall.get("height_mm", 2800.0)) / 1000.0
+			var wall_thickness := float(wall.get("thickness_mm", 150.0)) / 1000.0
 			var angle := atan2(b.y - a.y, b.x - a.x)
-			var center := Vector3((mid.x - plan_canvas.size.x * 0.5) / PPM, base_y + 1.4, (mid.y - plan_canvas.size.y * 0.5) / PPM)
+			var center := Vector3((mid.x - plan_canvas.size.x * 0.5) / PPM, base_y + wall_height * 0.5, (mid.y - plan_canvas.size.y * 0.5) / PPM)
 			var opening := str(wall.get("opening", ""))
 			var direction := Vector3(cos(angle), 0, sin(angle))
 			if opening == "door" or opening == "window":
@@ -475,24 +565,24 @@ func _rebuild_3d() -> void:
 				var side_length := maxf((length - gap) * 0.5, 0.06)
 				for side in [-1.0, 1.0]:
 					var side_center := center + direction * side * (gap * 0.5 + side_length * 0.5)
-					var side_wall := _box(root, Vector3(side_length, WALL_HEIGHT, 0.16), side_center, wall_mat)
+					var side_wall := _box(root, Vector3(side_length, wall_height, wall_thickness), side_center, wall_mat)
 					side_wall.rotation.y = -angle
 				if opening == "door":
-					var lintel := _box(root, Vector3(gap, WALL_HEIGHT - 2.05, 0.16), center + Vector3(0, 2.05 + (WALL_HEIGHT - 2.05) * 0.5, 0), wall_mat)
+					var lintel := _box(root, Vector3(gap, maxf(wall_height - 2.05, 0.05), wall_thickness), center + Vector3(0, 2.05 + maxf(wall_height - 2.05, 0.05) * 0.5, 0), wall_mat)
 					lintel.rotation.y = -angle
 				else:
-					var sill := _box(root, Vector3(gap, 0.85, 0.16), center + Vector3(0, 0.425, 0), wall_mat)
-					var header := _box(root, Vector3(gap, 0.75, 0.16), center + Vector3(0, 2.425, 0), wall_mat)
+					var sill := _box(root, Vector3(gap, 0.85, wall_thickness), center + Vector3(0, 0.425, 0), wall_mat)
+					var header := _box(root, Vector3(gap, maxf(wall_height - 2.1, 0.1), wall_thickness), center + Vector3(0, 2.1 + maxf(wall_height - 2.1, 0.1) * 0.5, 0), wall_mat)
 					sill.rotation.y = -angle
 					header.rotation.y = -angle
-					var pane := _box(root, Vector3(gap * 0.94, 1.0, 0.035), center + Vector3(0, 1.35, 0), glass)
+					var pane := _box(root, Vector3(gap * 0.94, maxf(wall_height - 1.0, 0.2), 0.035), center + Vector3(0, wall_height * 0.5, 0), glass)
 					pane.rotation.y = -angle
 			else:
-				var segment := _box(root, Vector3(maxf(length, 0.12), WALL_HEIGHT, 0.16), center, wall_mat)
+				var segment := _box(root, Vector3(maxf(length, 0.12), wall_height, wall_thickness), center, wall_mat)
 				segment.rotation.y = -angle
-			var skirting := _box(root, Vector3(maxf(length, 0.12), 0.1, 0.19), Vector3(center.x, base_y + 0.1, center.z), trim_mat)
+			var skirting := _box(root, Vector3(maxf(length, 0.12), 0.1, wall_thickness + 0.03), Vector3(center.x, base_y + 0.1, center.z), trim_mat)
 			skirting.rotation.y = -angle
-			var crown := _box(root, Vector3(maxf(length, 0.12), 0.07, 0.19), Vector3(center.x, base_y + WALL_HEIGHT - 0.035, center.z), trim_mat)
+			var crown := _box(root, Vector3(maxf(length, 0.12), 0.07, wall_thickness + 0.03), Vector3(center.x, base_y + wall_height - 0.035, center.z), trim_mat)
 			crown.rotation.y = -angle
 		for item in floor_data.get("furniture", []):
 			_add_furniture(root, item, base_y)
@@ -677,7 +767,7 @@ func _read_import_file(path: String) -> void:
 func _save_project() -> void:
 	var wall_data: Array[Dictionary] = []
 	for w in walls:
-		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", "")})
+		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false)})
 	var furniture_data: Array[Dictionary] = []
 	for item in furniture:
 		var p: Vector2 = item.get("position", Vector2.ZERO)
@@ -717,7 +807,7 @@ func _load_project() -> void:
 	walls.clear()
 	for item in data.get("walls", []):
 		if item is Dictionary and item.has("a") and item.has("b") and item.a.size() == 2 and item.b.size() == 2:
-			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1])), "opening": str(item.get("opening", ""))})
+			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1])), "opening": str(item.get("opening", "")), "thickness_mm": float(item.get("thickness_mm", 150.0)), "height_mm": float(item.get("height_mm", 2800.0)), "load_bearing": bool(item.get("load_bearing", false))})
 	furniture.clear()
 	for item in data.get("furniture", []):
 		if item is Dictionary and item.has("kind") and item.has("position") and item.position.size() == 2:
@@ -728,7 +818,7 @@ func _load_project() -> void:
 			var fwalls: Array[Dictionary] = []
 			for w in floor_item.get("walls", []):
 				if w is Dictionary and w.has("a") and w.has("b"):
-					fwalls.append({"a": Vector2(float(w.a[0]), float(w.a[1])), "b": Vector2(float(w.b[0]), float(w.b[1])), "opening": str(w.get("opening", ""))})
+					fwalls.append({"a": Vector2(float(w.a[0]), float(w.a[1])), "b": Vector2(float(w.b[0]), float(w.b[1])), "opening": str(w.get("opening", "")), "thickness_mm": float(w.get("thickness_mm", 150.0)), "height_mm": float(w.get("height_mm", 2800.0)), "load_bearing": bool(w.get("load_bearing", false))})
 			var ffurniture: Array[Dictionary] = []
 			for item in floor_item.get("furniture", []):
 				if item is Dictionary and item.has("position"):
