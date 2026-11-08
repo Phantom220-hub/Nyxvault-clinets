@@ -778,7 +778,7 @@ func _pick_wall_endpoint_3d(screen_pos: Vector2) -> Dictionary:
 		var wall_height := float(wall.get("height_mm", 2800.0)) / 1000.0
 		for endpoint_index in [0, 1]:
 			var point: Vector2 = wall.get("a", Vector2.ZERO) if endpoint_index == 0 else wall.get("b", Vector2.ZERO)
-			var world_point := Vector3((point.x - plan_canvas.size.x * 0.5) / PPM, base_y + wall_height * 0.5, (point.y - plan_canvas.size.y * 0.5) / PPM)
+			var world_point := Vector3((point.x - plan_canvas.size.x * 0.5) / PPM, base_y, (point.y - plan_canvas.size.y * 0.5) / PPM)
 			if view_camera.is_position_behind(world_point):
 				continue
 			var distance := view_camera.unproject_position(world_point).distance_to(screen_pos)
