@@ -18,16 +18,16 @@ Legend:
 - [x] Store a load-bearing classification flag (classification only, not structural analysis).
 - [~] Display wall thickness in plan.
 - [~] Bounded-face detection for simple planar wall graphs, including split faces; concave/overlapping/near-coincident topology still needs validation.
-- [ ] Automatic wall junction resolution and T/L/cross junctions.
+- [~] Split intersecting non-collinear wall segments into shared T/cross nodes; rendered miters, collinear overlap resolution and opening/junction conflict resolution remain.
 - [~] Move connected wall components and propagate endpoint moves through shared endpoints; junctions and arbitrary topology still need device/runtime validation.
-- [ ] Split/merge wall segments while preserving openings and metadata.
-- [ ] Exact angle constraints and numeric angle entry.
+- [~] Split selected walls and merge a single collinear neighbor with matching basic properties; splitting across openings is rejected and advanced layer/finish compatibility remains.
+- [~] Numeric wall creation by X/Y, length and arbitrary angle; numeric angle editing of existing walls and constrained dimension chains remain.
 - [~] Toggleable wall dimension strings with extension lines and end ticks; room/opening dimension chains remain.
 - [~] Auto room labels, bounded-face area and perimeter totals; editable room names, net area and complex/concave topology remain.
 - [ ] Wall construction layers and different finish materials on each face.
 - [ ] Drafting layers for walls, doors, windows, furniture, electrical and plumbing.
-- [ ] Copy, mirror, array and alignment tools.
-- [ ] Undo/redo command history for all edit operations.
+- [~] Copy, vertical-axis mirror and normal-direction array for selected wall; multi-object transforms, alignment and snapping remain.
+- [~] Undo/redo covers wall creation, splitting, merging, copy, mirror, array and network noding; furniture and all project entity operations remain.
 
 ## 2. Direct 3D editing
 - [~] 3D scene generation from current 2D walls.
@@ -169,10 +169,10 @@ Legend:
 
 ## 16. Quality, validation and Android delivery
 - [ ] Run Godot headless editor parse/import check.
-- [~] Headless geometry/unit tests now cover units, angular snapping, connected wall moves, polygon metrics and bounded faces; latest complete CI run still pending.
+- [~] Headless tests cover units, angular snapping, connected wall moves, polygon metrics, bounded faces, splitting, T/cross noding, opening protection and collinear merging; the feature branch still requires CI validation.
 - [ ] Save/load round-trip tests, including old schema versions.
 - [ ] Test touch input, screen scaling, rotation and gesture conflicts.
-- [~] Automated tests cover basic connected-wall and room-face geometry; wall intersections, openings, floor joins and camera picking still need dedicated tests.
+- [~] Automated tests cover common connected-wall and intersection cases; near-coincident coordinates, collinear overlaps, complex openings, wall-face miters, floor joins and camera picking still need dedicated tests.
 - [ ] Profile CPU/GPU/RAM on low-end Android hardware.
 - [ ] Validate Android permissions and file import/export.
 - [ ] Build signed/release APK and verify install/launch on target devices.
