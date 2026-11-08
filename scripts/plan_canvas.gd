@@ -458,7 +458,6 @@ func add_wall_between_points(start_point_px: Vector2, end_point_px: Vector2, con
 	var b := _snap(end_point_px)
 	if constrain_angle and angle_snap_enabled:
 		b = Geometry.constrain_angle(a, b, angle_snap_degrees)
-		b = _snap(b)
 	if a.distance_to(b) < Geometry.MIN_WALL_LENGTH_PX:
 		return false
 	var wall := {
