@@ -332,7 +332,9 @@ func _on_wall_created(_a: Vector2, _b: Vector2) -> void:
 	if not pending_opening.is_empty() and not walls.is_empty():
 		var last_index := walls.size() - 1
 		var last_wall: Dictionary = walls[last_index]
-		var length_mm := Units.pixels_to_mm((last_wall.a as Vector2).distance_to(last_wall.b as Vector2))
+		var last_a: Vector2 = last_wall.get("a", Vector2.ZERO)
+		var last_b: Vector2 = last_wall.get("b", Vector2.ZERO)
+		var length_mm := Units.pixels_to_mm(last_a.distance_to(last_b))
 		last_wall["opening"] = pending_opening
 		last_wall["opening_width_mm"] = minf(900.0 if pending_opening == "door" else 1250.0, maxf(500.0, length_mm - 100.0))
 		last_wall["opening_offset_mm"] = length_mm * 0.5
@@ -623,28 +625,35 @@ func _rebuild_3d() -> void:
 			var opening := str(wall.get("opening", ""))
 			var direction := Vector3(cos(angle), 0, sin(angle))
 			if opening == "door" or opening == "window":
-				var opening_width := 0.95 if opening == "door" else 1.25
-				var gap := minf(opening_width, maxf(length - 0.25, 0.0))
-				var side_length := maxf((length - gap) * 0.5, 0.06)
-				for side in [-1.0, 1.0]:
-					var side_center := center + direction * side * (gap * 0.5 + side_length * 0.5)
-					var side_wall := _box(root, Vector3(side_length, wall_height, wall_thickness), side_center, wall_mat)
-					side_wall.rotation.y = -angle
+				var default_width_mm := 900.0 if opening == "door" else 1250.0
+				var gap := minf(float(wall.get("opening_width_mm", default_width_mm)) / 1000.0, maxf(length - 0.1, 0.1))
+				var opening_offset_m := clampf(float(wall.get("opening_offset_mm", length * 500.0)) / 1000.0, gap * 0.5, maxf(gap * 0.5, length - gap * 0.5))
+				var left_length := opening_offset_m - gap * 0.5
+				var right_length := length - opening_offset_m - gap * 0.5
+				var opening_center := center + direction * (opening_offset_m - length * 0.5)
+				if left_length > 0.05:
+					var left_center := center - direction * (length * 0.5 - left_length * 0.5)
+					var left_wall := _box(root, Vector3(left_length, wall_height, wall_thickness), left_center, wall_mat)
+					left_wall.rotation.y = -angle
+				if right_length > 0.05:
+					var right_center := center + direction * (length * 0.5 - right_length * 0.5)
+					var right_wall := _box(root, Vector3(right_length, wall_height, wall_thickness), right_center, wall_mat)
+					right_wall.rotation.y = -angle
 				if opening == "door":
-					var door_opening_height := minf(2.05, wall_height * 0.85)
+					var door_opening_height := minf(float(wall.get("opening_height_mm", 2050.0)) / 1000.0, wall_height * 0.95)
 					var lintel_height := maxf(wall_height - door_opening_height, 0.02)
-					var lintel := _box(root, Vector3(gap, lintel_height, wall_thickness), Vector3(center.x, base_y + door_opening_height + lintel_height * 0.5, center.z), wall_mat)
+					var lintel := _box(root, Vector3(gap, lintel_height, wall_thickness), Vector3(opening_center.x, base_y + door_opening_height + lintel_height * 0.5, opening_center.z), wall_mat)
 					lintel.rotation.y = -angle
 				else:
-					var sill_height := minf(0.85, wall_height * 0.25)
-					var window_top := minf(2.1, wall_height * 0.85)
+					var sill_height := minf(float(wall.get("sill_height_mm", 850.0)) / 1000.0, wall_height * 0.4)
+					var window_top := minf(sill_height + float(wall.get("opening_height_mm", 1200.0)) / 1000.0, wall_height * 0.95)
 					var pane_height := maxf(window_top - sill_height, 0.1)
 					var header_height := maxf(wall_height - window_top, 0.02)
-					var sill := _box(root, Vector3(gap, sill_height, wall_thickness), Vector3(center.x, base_y + sill_height * 0.5, center.z), wall_mat)
-					var header := _box(root, Vector3(gap, header_height, wall_thickness), Vector3(center.x, base_y + window_top + header_height * 0.5, center.z), wall_mat)
+					var sill := _box(root, Vector3(gap, sill_height, wall_thickness), Vector3(opening_center.x, base_y + sill_height * 0.5, opening_center.z), wall_mat)
+					var header := _box(root, Vector3(gap, header_height, wall_thickness), Vector3(opening_center.x, base_y + window_top + header_height * 0.5, opening_center.z), wall_mat)
 					sill.rotation.y = -angle
 					header.rotation.y = -angle
-					var pane := _box(root, Vector3(gap * 0.94, pane_height, 0.035), Vector3(center.x, base_y + sill_height + pane_height * 0.5, center.z), glass)
+					var pane := _box(root, Vector3(gap * 0.94, pane_height, 0.035), Vector3(opening_center.x, base_y + sill_height + pane_height * 0.5, opening_center.z), glass)
 					pane.rotation.y = -angle
 			else:
 				var segment := _box(root, Vector3(maxf(length, 0.12), wall_height, wall_thickness), center, wall_mat)
@@ -853,7 +862,7 @@ func _read_import_file(path: String) -> void:
 func _save_project() -> void:
 	var wall_data: Array[Dictionary] = []
 	for w in walls:
-		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false)})
+		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false), "opening_width_mm": w.get("opening_width_mm", 900.0), "opening_offset_mm": w.get("opening_offset_mm", 0.0), "opening_height_mm": w.get("opening_height_mm", 2050.0), "sill_height_mm": w.get("sill_height_mm", 850.0)})
 	var furniture_data: Array[Dictionary] = []
 	for item in furniture:
 		var p: Vector2 = item.get("position", Vector2.ZERO)
@@ -894,7 +903,7 @@ func _load_project() -> void:
 	walls.clear()
 	for item in data.get("walls", []):
 		if item is Dictionary and item.has("a") and item.has("b") and item.a.size() == 2 and item.b.size() == 2:
-			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1])), "opening": str(item.get("opening", "")), "thickness_mm": float(item.get("thickness_mm", 150.0)), "height_mm": float(item.get("height_mm", 2800.0)), "load_bearing": bool(item.get("load_bearing", false))})
+			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1])), "opening": str(item.get("opening", "")), "thickness_mm": float(item.get("thickness_mm", 150.0)), "height_mm": float(item.get("height_mm", 2800.0)), "load_bearing": bool(item.get("load_bearing", false)), "opening_width_mm": float(item.get("opening_width_mm", 900.0)), "opening_offset_mm": float(item.get("opening_offset_mm", 0.0)), "opening_height_mm": float(item.get("opening_height_mm", 2050.0)), "sill_height_mm": float(item.get("sill_height_mm", 850.0))})
 	furniture.clear()
 	for item in data.get("furniture", []):
 		if item is Dictionary and item.has("kind") and item.has("position") and item.position.size() == 2:
@@ -905,7 +914,7 @@ func _load_project() -> void:
 			var fwalls: Array[Dictionary] = []
 			for w in floor_item.get("walls", []):
 				if w is Dictionary and w.has("a") and w.has("b"):
-					fwalls.append({"a": Vector2(float(w.a[0]), float(w.a[1])), "b": Vector2(float(w.b[0]), float(w.b[1])), "opening": str(w.get("opening", "")), "thickness_mm": float(w.get("thickness_mm", 150.0)), "height_mm": float(w.get("height_mm", 2800.0)), "load_bearing": bool(w.get("load_bearing", false))})
+					fwalls.append({"a": Vector2(float(w.a[0]), float(w.a[1])), "b": Vector2(float(w.b[0]), float(w.b[1])), "opening": str(w.get("opening", "")), "thickness_mm": float(w.get("thickness_mm", 150.0)), "height_mm": float(w.get("height_mm", 2800.0)), "load_bearing": bool(w.get("load_bearing", false)), "opening_width_mm": float(w.get("opening_width_mm", 900.0)), "opening_offset_mm": float(w.get("opening_offset_mm", 0.0)), "opening_height_mm": float(w.get("opening_height_mm", 2050.0)), "sill_height_mm": float(w.get("sill_height_mm", 850.0))})
 			var ffurniture: Array[Dictionary] = []
 			for item in floor_item.get("furniture", []):
 				if item is Dictionary and item.has("position"):
