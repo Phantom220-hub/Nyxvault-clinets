@@ -71,13 +71,13 @@ func _draw() -> void:
 		var world_pos: Vector2 = item.get("position", Vector2.ZERO)
 		var center := Vector2(size.x * 0.5 + world_pos.x * PIXELS_PER_METRE, size.y * 0.5 + world_pos.y * PIXELS_PER_METRE)
 		var kind := int(item.get("kind", 0))
-		var dims := [Vector2(92, 48), Vector2(58, 92), Vector2(72, 48), Vector2(42, 42), Vector2(58, 32), Vector2(88, 32), Vector2(42, 42), Vector2(36, 48), Vector2(82, 40), Vector2(44, 36), Vector2(30, 30), Vector2(26, 26)]
+		var dims := [Vector2(92, 48), Vector2(58, 92), Vector2(72, 48), Vector2(42, 42), Vector2(58, 32), Vector2(88, 32), Vector2(42, 42), Vector2(36, 48), Vector2(82, 40), Vector2(44, 36), Vector2(30, 30), Vector2(26, 26), Vector2(56, 108)]
 		var footprint: Vector2 = dims[clampi(kind, 0, dims.size() - 1)] * float(item.get("scale", 1.0))
 		draw_set_transform(center, float(item.get("rotation", 0.0)), Vector2.ONE)
 		var rect := Rect2(-footprint * 0.5, footprint)
 		draw_rect(rect, Color("#52D6C7") if item_index == selected_furniture else Color("#B98B5E"), true)
 		draw_rect(rect, Color("#EAFBF8"), false, 2.0)
-		var labels := ["ДИВАН", "КРОВАТЬ", "СТОЛ", "КРЕСЛО", "ШКАФ", "ТУМБА", "ХОЛОД.", "УНИТАЗ", "ВАННА", "РАКОВИНА", "РАСТ.", "ТОРШЕР"]
+		var labels := ["ДИВАН", "КРОВАТЬ", "СТОЛ", "КРЕСЛО", "ШКАФ", "ТУМБА", "ХОЛОД.", "УНИТАЗ", "ВАННА", "РАКОВИНА", "РАСТ.", "ТОРШЕР", "ЛЕСТНИЦА"]
 		draw_string(ThemeDB.fallback_font, Vector2(-footprint.x * 0.5 + 2, -footprint.y * 0.5 - 4), labels[clampi(kind, 0, labels.size() - 1)], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#F2F6F8"))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
