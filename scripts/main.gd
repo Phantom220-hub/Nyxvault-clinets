@@ -1338,7 +1338,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_show_plan()
 		KEY_3:
 			_show_3d()
-		_ :
+		_:
 			return
 	event.accept()
 
