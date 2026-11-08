@@ -39,11 +39,15 @@ var wall_3d_endpoint_pick: Dictionary = {}
 var material_theme := 0
 var project_dialog: FileDialog
 var dimensions_enabled := true
+var current_project_name := ""
+var autosave_timer: Timer
 
 func _ready() -> void:
 	floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []}]
 	_build_interface()
 	_rebuild_3d()
+	_start_autosave()
+	call_deferred("_check_autosave_recovery")
 
 func _build_interface() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -131,6 +135,7 @@ func _build_interface() -> void:
 	_add_button(tools, "СТЕНА В 3D", _toggle_3d_wall_draw, false)
 	_add_button(tools, "КОНЦЫ СТЕН 3D", _toggle_3d_wall_endpoint_edit, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
+	_add_button(tools, "ПРОЕКТЫ", _open_project_manager, false)
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
@@ -1307,6 +1312,160 @@ func _calculate_room_areas() -> void:
 		total_perimeter_m += Geometry.polygon_perimeter(face) / PPM
 	status_label.text = "Этаж %d • помещений: %d • площадь: %.2f м² • периметры: %.2f м" % [current_floor + 1, faces.size(), total_area_m2, total_perimeter_m]
 
+func _ensure_projects_directory() -> void:
+	DirAccess.make_dir_recursive("user://projects")
+
+
+func _safe_project_name(raw_name: String) -> String:
+	var safe := raw_name.strip_edges()
+	for invalid_character in ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"]:
+		safe = safe.replace(str(invalid_character), "_")
+	return safe.strip_edges()
+
+
+func _named_project_path(project_name: String) -> String:
+	return "user://projects/" + _safe_project_name(project_name) + ".json"
+
+
+func _copy_user_file(source_path: String, target_path: String) -> bool:
+	var source := FileAccess.open(source_path, FileAccess.READ)
+	if source == null:
+		return false
+	var contents := source.get_as_text()
+	source.close()
+	var target := FileAccess.open(target_path, FileAccess.WRITE)
+	if target == null:
+		return false
+	target.store_string(contents)
+	target.close()
+	return true
+
+
+func _start_autosave() -> void:
+	autosave_timer = Timer.new()
+	autosave_timer.wait_time = 60.0
+	autosave_timer.one_shot = false
+	autosave_timer.timeout.connect(_autosave_project)
+	add_child(autosave_timer)
+	autosave_timer.start()
+
+
+func _autosave_project() -> void:
+	var previous_status := status_label.text if is_instance_valid(status_label) else ""
+	_save_project()
+	_copy_user_file("user://dreamhouse_project.json", "user://dreamhouse_autosave.json")
+	if is_instance_valid(status_label):
+		status_label.text = previous_status
+
+
+func _check_autosave_recovery() -> void:
+	if not FileAccess.file_exists("user://dreamhouse_autosave.json"):
+		return
+	var autosave_time := FileAccess.get_modified_time("user://dreamhouse_autosave.json")
+	var project_time := FileAccess.get_modified_time("user://dreamhouse_project.json") if FileAccess.file_exists("user://dreamhouse_project.json") else 0
+	if autosave_time <= project_time:
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Восстановление автосохранения"
+	dialog.dialog_text = "Найдено более новое автосохранение. Восстановить его? Текущий файл проекта не будет удалён."
+	dialog.confirmed.connect(func():
+		if _copy_user_file("user://dreamhouse_autosave.json", "user://dreamhouse_project.json"):
+			_load_project()
+			status_label.text = "Проект восстановлен из автосохранения"
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+
+func _open_project_manager() -> void:
+	_ensure_projects_directory()
+	var window := Window.new()
+	window.title = "Менеджер проектов DreamHouse 3D"
+	window.size = Vector2i(460, 370)
+	window.min_size = Vector2i(360, 300)
+	window.transient = true
+	window.exclusive = true
+	var root := VBoxContainer.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_theme_constant_override("separation", 10)
+	window.add_child(root)
+	var title := Label.new()
+	title.text = "Сохранённые проекты на устройстве"
+	root.add_child(title)
+	var project_select := OptionButton.new()
+	project_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(project_select)
+	var name_input := LineEdit.new()
+	name_input.placeholder_text = "Название проекта"
+	name_input.text = current_project_name
+	root.add_child(name_input)
+	var row := HBoxContainer.new()
+	root.add_child(row)
+	var save_button := Button.new()
+	save_button.text = "СОХРАНИТЬ КАК"
+	row.add_child(save_button)
+	var open_button := Button.new()
+	open_button.text = "ОТКРЫТЬ"
+	row.add_child(open_button)
+	var delete_button := Button.new()
+	delete_button.text = "УДАЛИТЬ"
+	row.add_child(delete_button)
+	var refresh_button := Button.new()
+	refresh_button.text = "ОБНОВИТЬ СПИСОК"
+	root.add_child(refresh_button)
+	var hint := Label.new()
+	hint.text = "Автосохранение выполняется каждые 60 секунд."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(hint)
+	add_child(window)
+	var refresh := func():
+		project_select.clear()
+		for filename in DirAccess.get_files_at("user://projects"):
+			if filename.ends_with(".json"):
+				project_select.add_item(filename.trim_suffix(".json"))
+	refresh_button.pressed.connect(refresh)
+	save_button.pressed.connect(func():
+		var safe_name := _safe_project_name(name_input.text)
+		if safe_name.is_empty():
+			hint.text = "Введите название проекта."
+			return
+		_save_project()
+		if _copy_user_file("user://dreamhouse_project.json", _named_project_path(safe_name)):
+			current_project_name = safe_name
+			hint.text = "Проект сохранён: " + safe_name
+			refresh.call()
+		else:
+			hint.text = "Не удалось сохранить проект."
+	)
+	open_button.pressed.connect(func():
+		if project_select.item_count == 0 or project_select.selected < 0:
+			hint.text = "Выберите проект из списка."
+			return
+		var selected_name := project_select.get_item_text(project_select.selected)
+		if _copy_user_file(_named_project_path(selected_name), "user://dreamhouse_project.json"):
+			current_project_name = selected_name
+			_load_project()
+			hint.text = "Открыт проект: " + selected_name
+		else:
+			hint.text = "Не удалось открыть проект."
+	)
+	delete_button.pressed.connect(func():
+		if project_select.item_count == 0 or project_select.selected < 0:
+			hint.text = "Выберите проект для удаления."
+			return
+		var selected_name := project_select.get_item_text(project_select.selected)
+		var error := DirAccess.remove_absolute(ProjectSettings.globalize_path(_named_project_path(selected_name)))
+		if error == OK:
+			if current_project_name == selected_name:
+				current_project_name = ""
+			hint.text = "Удалён проект: " + selected_name
+			refresh.call()
+		else:
+			hint.text = "Не удалось удалить проект. Код: %d" % error
+	)
+	refresh.call()
+	window.popup_centered()
+
 func _export_project() -> void:
 	_save_project()
 	var dialog := FileDialog.new()
@@ -1384,6 +1543,8 @@ func _save_project() -> void:
 		return
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
+	if not current_project_name.is_empty():
+		_copy_user_file("user://dreamhouse_project.json", _named_project_path(current_project_name))
 	status_label.text = "Сохранено • %d стен • %d объектов" % [walls.size(), furniture.size()]
 
 func _load_project() -> void:
