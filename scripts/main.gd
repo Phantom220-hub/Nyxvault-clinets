@@ -140,6 +140,9 @@ func _show_startup_splash() -> void:
 
 func _show_home_menu() -> void:
 	var menu := _make_startup_overlay()
+	menu.modulate.a = 0.0
+	var menu_fade := create_tween()
+	menu_fade.tween_property(menu, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	menu.add_child(center)
