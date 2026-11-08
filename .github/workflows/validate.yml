@@ -1,0 +1,33 @@
+name: Validate Godot Project
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot 4.7.2
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: false
+
+      - name: Parse project and import resources
+        run: godot --headless --editor --path . --quit
+
+      - name: Run geometry regression tests
+        run: godot --headless --path . --script tests/test_geometry.gd
+
+      - name: Run project storage regression tests
+        run: godot --headless --path . --script tests/test_project_storage.gd
