@@ -259,19 +259,19 @@ func _edit_selected_wall() -> void:
 	length_input.max_value = 50000.0
 	length_input.step = 10.0
 	length_input.value = Units.pixels_to_mm((wall.a as Vector2).distance_to(wall.b as Vector2))
-	form.add_child(_labeled_control(form, "Длина стены (mm)", length_input))
+	_labeled_control(form, "Длина стены (mm)", length_input)
 	var thickness_input := SpinBox.new()
 	thickness_input.min_value = 50.0
 	thickness_input.max_value = 1000.0
 	thickness_input.step = 10.0
 	thickness_input.value = float(wall.get("thickness_mm", 150.0))
-	form.add_child(_labeled_control(form, "Толщина стены (mm)", thickness_input))
+	_labeled_control(form, "Толщина стены (mm)", thickness_input)
 	var height_input := SpinBox.new()
 	height_input.min_value = 1800.0
 	height_input.max_value = 10000.0
 	height_input.step = 50.0
 	height_input.value = float(wall.get("height_mm", 2800.0))
-	form.add_child(_labeled_control(form, "Высота стены (mm)", height_input))
+	_labeled_control(form, "Высота стены (mm)", height_input)
 	var bearing := CheckButton.new()
 	bearing.text = "Несущая стена (проектная метка)"
 	bearing.button_pressed = bool(wall.get("load_bearing", false))
