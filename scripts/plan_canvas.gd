@@ -24,6 +24,8 @@ var drawing := false
 var dragging_wall := false
 var drag_endpoint := -1 # 0=start, 1=end, -1=whole wall
 var drag_last := Vector2.ZERO
+var drag_start_pointer := Vector2.ZERO
+var drag_start_wall: Dictionary = {}
 var start_point := Vector2.ZERO
 var current_point := Vector2.ZERO
 var grid_size := 32.0
@@ -145,6 +147,8 @@ func _pointer_down(point: Vector2) -> void:
 				drag_endpoint = -1
 			dragging_wall = true
 			drag_last = point
+			drag_start_pointer = point
+			drag_start_wall = wall.duplicate(true)
 	accept_event()
 	queue_redraw()
 
@@ -159,11 +163,13 @@ func _pointer_drag(point: Vector2) -> void:
 	elif drag_endpoint == 1:
 		wall.b = _snap(point)
 	else:
-		var snapped_delta := delta
-		if snap_enabled:
-			snapped_delta = Geometry.snap_point(delta, grid_size)
-		wall.a = (wall.a as Vector2) + snapped_delta
-		wall.b = (wall.b as Vector2) + snapped_delta
+		var original_a: Vector2 = drag_start_wall.get("a", wall.a)
+		var original_b: Vector2 = drag_start_wall.get("b", wall.b)
+		var desired_a := original_a + (point - drag_start_pointer)
+		var moved_a := _snap(desired_a)
+		var offset := moved_a - original_a
+		wall.a = original_a + offset
+		wall.b = original_b + offset
 	if not Geometry.valid_wall(wall):
 		return
 	walls[selected_wall] = wall
@@ -182,6 +188,7 @@ func _pointer_up(point: Vector2) -> void:
 	elif dragging_wall:
 		dragging_wall = false
 		drag_endpoint = -1
+		drag_start_wall.clear()
 		walls_changed.emit()
 	accept_event()
 	queue_redraw()
