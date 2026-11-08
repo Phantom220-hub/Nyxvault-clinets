@@ -732,6 +732,8 @@ func _pick_wall_3d(screen_pos: Vector2) -> void:
 	var base_y := _floor_base_y(current_floor)
 	for wall_index in range(floor_walls.size()):
 		var wall: Dictionary = floor_walls[wall_index]
+		if not bool(plan_canvas.layer_visibility.get("walls", true)):
+			continue
 		var a: Vector2 = wall.get("a", Vector2.ZERO)
 		var b: Vector2 = wall.get("b", Vector2.ZERO)
 		var mid := (a + b) * 0.5
@@ -880,6 +882,8 @@ func _rebuild_3d() -> void:
 		var floor_walls: Array = floor_data.get("walls", [])
 		for wall_index in range(floor_walls.size()):
 			var wall: Dictionary = floor_walls[wall_index]
+			if not bool(plan_canvas.layer_visibility.get("walls", true)):
+				continue
 			var active_wall_mat: Material = wall_mat
 			if floor_index == current_floor and wall_index == plan_canvas.selected_wall:
 				active_wall_mat = _mat(Color("#FFC878"), 0.62)
