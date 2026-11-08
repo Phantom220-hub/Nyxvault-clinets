@@ -46,8 +46,8 @@ Legend:
 ## 3. Walls, doors and windows
 - [~] Basic wall solids with configurable height/thickness.
 - [~] Basic door/window gap for a newly created wall.
-- [ ] Place, move and resize openings on existing walls.
-- [ ] Opening offset from wall start, sill height and head height.
+- [~] Set an opening on a selected wall and edit its width, along-wall offset, height and sill height; full drag handles and opening collision checks remain.
+- [~] Persist opening offset from wall start, opening width/height and sill height; editable head-height constraints and validation remain.
 - [ ] Door leaf, frame, hinge side and swing direction.
 - [ ] Sliding, double, entrance and interior door types.
 - [ ] Window frame, glazing, sill and configurable transparency.
@@ -154,7 +154,7 @@ Legend:
 - [ ] Named multi-project manager.
 - [ ] Autosave, manual save and recovery snapshots.
 - [ ] Versioned schema migrations and corrupt-file recovery.
-- [ ] Full persistence for openings, materials, layers, roof, stairs, MEP and dimensions.
+- [~] Persist wall opening geometry and wall construction properties across floors; materials, layers, roof, stairs, MEP and dimensions remain.
 - [ ] Reliable import/export on Android scoped storage.
 - [ ] Backup/restore and project comparison.
 
