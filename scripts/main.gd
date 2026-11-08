@@ -30,6 +30,9 @@ var floors: Array[Dictionary] = []
 var current_floor := 0
 var move_mode_3d := false
 var select_walls_3d := false
+var draw_walls_3d := false
+var wall_3d_has_start := false
+var wall_3d_start_point := Vector2.ZERO
 var material_theme := 0
 var project_dialog: FileDialog
 var dimensions_enabled := true
@@ -117,6 +120,7 @@ func _build_interface() -> void:
 	_add_button(tools, "НАСТРОЙКИ ЭТАЖА", _edit_current_floor, false)
 	_add_button(tools, "MOVE 3D", _toggle_3d_move, false)
 	_add_button(tools, "ВЫБРАТЬ СТЕНУ 3D", _toggle_3d_wall_select, false)
+	_add_button(tools, "СТЕНА В 3D", _toggle_3d_wall_draw, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
@@ -689,7 +693,9 @@ func _on_preview_input(event: InputEvent) -> void:
 				_pick_furniture(_to_viewport_position(event.position))
 		else:
 			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0:
-				if select_walls_3d:
+				if draw_walls_3d:
+					_handle_3d_wall_tap(_to_viewport_position(event.position))
+				elif select_walls_3d:
 					_pick_wall_3d(_to_viewport_position(event.position))
 				elif not move_mode_3d:
 					_pick_furniture(_to_viewport_position(event.position))
@@ -697,7 +703,12 @@ func _on_preview_input(event: InputEvent) -> void:
 	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and preview_dragging:
 		var delta: Vector2 = event.position - preview_last_pos
 		preview_last_pos = event.position
-		if move_mode_3d and selected_furniture >= 0:
+		if draw_walls_3d:
+			var hit: Variant = _screen_to_floor(_to_viewport_position(event.position))
+			if hit is Vector3 and wall_3d_has_start:
+				var plan_point := _world_to_plan_point(hit)
+				status_label.text = "3D-стена • длина %.0f mm • отпустите и коснитесь конечной точки" % Units.pixels_to_mm(wall_3d_start_point.distance_to(plan_point))
+		elif move_mode_3d and selected_furniture >= 0:
 			var hit: Variant = _screen_to_floor(_to_viewport_position(event.position))
 			if hit is Vector3:
 				furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
@@ -714,9 +725,54 @@ func _on_preview_input(event: InputEvent) -> void:
 		camera_distance += 1.0
 		_update_camera()
 
+
+func _world_to_plan_point(world_point: Vector3) -> Vector2:
+	return Vector2(
+		world_point.x * PPM + plan_canvas.size.x * 0.5,
+		world_point.z * PPM + plan_canvas.size.y * 0.5
+	)
+
+
+func _handle_3d_wall_tap(screen_pos: Vector2) -> void:
+	var hit: Variant = _screen_to_floor(screen_pos)
+	if not (hit is Vector3):
+		status_label.text = "Не удалось определить точку на уровне этажа"
+		return
+	var plan_point := _world_to_plan_point(hit)
+	if not wall_3d_has_start:
+		wall_3d_start_point = plan_point
+		wall_3d_has_start = true
+		status_label.text = "3D-стена: начальная точка выбрана • коснитесь конечной точки"
+		return
+	var created := plan_canvas.add_wall_between_points(wall_3d_start_point, plan_point, true)
+	wall_3d_has_start = false
+	if created:
+		walls = plan_canvas.walls.duplicate(true)
+		_snapshot_floor()
+		status_label.text = "Стена создана непосредственно в 3D • всего стен: %d" % walls.size()
+		_rebuild_3d()
+	else:
+		status_label.text = "Стена не создана: длина меньше минимальной"
+
+
+func _toggle_3d_wall_draw() -> void:
+	draw_walls_3d = not draw_walls_3d
+	wall_3d_has_start = false
+	if draw_walls_3d:
+		move_mode_3d = false
+		select_walls_3d = false
+		is_3d = true
+		plan_canvas.visible = false
+		preview.visible = true
+		status_label.text = "3D-рисование включено • коснитесь начальной, затем конечной точки на уровне этажа"
+	else:
+		status_label.text = "3D-рисование выключено"
+
 func _toggle_3d_wall_select() -> void:
 	select_walls_3d = not select_walls_3d
 	if select_walls_3d:
+		draw_walls_3d = false
+		wall_3d_has_start = false
 		move_mode_3d = false
 		status_label.text = "3D: каснитесь стены для выбора; параметры редактируются через «ПАРАМЕТРЫ СТЕНЫ»"
 	else:
@@ -772,6 +828,8 @@ func _toggle_3d_move() -> void:
 	move_mode_3d = not move_mode_3d
 	if move_mode_3d:
 		select_walls_3d = false
+		draw_walls_3d = false
+		wall_3d_has_start = false
 	status_label.text = "3D: перетаскивайте выбранную мебель" if move_mode_3d else "3D: перетаскивание камеры"
 
 func _cycle_material_theme() -> void:
