@@ -22,6 +22,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Enforce offline-only runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE 'HTTPRequest|HTTPClient|WebSocketPeer|WebSocketMultiplayerPeer|MultiplayerAPI|PacketPeer|ENetMultiplayerPeer|https?://' scripts scenes project.godot; then
+            echo "Network API or remote URL found in runtime files. DreamHouse 3D must remain offline-first."
+            exit 1
+          fi
+          grep -q '^permissions/internet=false$' export_presets.cfg
+          echo "Offline policy scan passed; Android INTERNET permission is disabled."
+
       - name: Install Godot 4.7.2 and export templates
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -59,6 +70,9 @@ jobs:
         run: |
           godot --version
           godot --headless --editor --path . --quit
+
+      - name: Run geometry tests
+        run: godot --headless --path . --script tests/test_geometry.gd
 
       - name: Export debug APK
         run: |
