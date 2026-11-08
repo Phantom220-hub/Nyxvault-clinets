@@ -43,6 +43,11 @@ var measurement_active := false
 var measurement_visible := false
 var layer_visibility: Dictionary = {"walls": true, "furniture": true, "rooms": true, "dimensions": true}
 var drag_start_walls: Array[Dictionary] = []
+var view_zoom := 1.0
+var view_pan := Vector2.ZERO
+var touch_points: Dictionary = {}
+var pinch_distance := 0.0
+var pinch_centroid := Vector2.ZERO
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -50,6 +55,7 @@ func _ready() -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color("#121E28"), true)
+	draw_set_transform(view_pan, 0.0, Vector2(view_zoom, view_zoom))
 	var step := maxi(1, int(grid_size))
 	for x in range(0, int(size.x) + step, step):
 		var major := (x / step) % 4 == 0
@@ -180,35 +186,82 @@ func set_tool_mode(mode: String) -> void:
 		measurement_visible = false
 	queue_redraw()
 
+func _screen_to_canvas(point: Vector2) -> Vector2:
+	return (point - view_pan) / maxf(view_zoom, 0.001)
+
+
 func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventScreenTouch:
 		if event.pressed:
-			_pointer_down(event.position)
+			touch_points[event.index] = event.position
+			if touch_points.size() == 2:
+				var points: Array = touch_points.values()
+				var first_point: Vector2 = points[0]
+				var second_point: Vector2 = points[1]
+				pinch_distance = first_point.distance_to(second_point)
+				pinch_centroid = (first_point + second_point) * 0.5
+				drawing = false
+				dragging_wall = false
+				measurement_active = false
+				queue_redraw()
+				accept_event()
+				return
+			if touch_points.size() > 2:
+				return
+			_pointer_down(_screen_to_canvas(event.position))
 		else:
-			_pointer_up(event.position)
-	elif event is InputEventMouseMotion:
-		if drawing:
-			current_point = _constrained_point(event.position)
-			queue_redraw()
-		elif dragging_wall:
-			_pointer_drag(event.position)
-		elif tool_mode == "measure" and measurement_active:
-			measurement_end = _snap(event.position)
-			queue_redraw()
-	elif event is InputEventScreenTouch:
-		if event.pressed:
-			_pointer_down(event.position)
-		else:
-			_pointer_up(event.position)
+			touch_points.erase(event.index)
+			pinch_distance = 0.0
+			if touch_points.is_empty():
+				_pointer_up(_screen_to_canvas(event.position))
+		accept_event()
 	elif event is InputEventScreenDrag:
+		if touch_points.has(event.index):
+			touch_points[event.index] = event.position
+		if touch_points.size() >= 2:
+			var points: Array = touch_points.values()
+			var first_point: Vector2 = points[0]
+			var second_point: Vector2 = points[1]
+			var distance_now := first_point.distance_to(second_point)
+			var centroid_now := (first_point + second_point) * 0.5
+			if pinch_distance > 1.0:
+				var next_zoom := clampf(view_zoom * distance_now / pinch_distance, 0.45, 3.5)
+				var anchor_world := (pinch_centroid - view_pan) / maxf(view_zoom, 0.001)
+				view_pan = centroid_now - anchor_world * next_zoom
+				view_zoom = next_zoom
+			view_pan += centroid_now - pinch_centroid
+			pinch_distance = distance_now
+			pinch_centroid = centroid_now
+			queue_redraw()
+			accept_event()
+			return
+		var canvas_point := _screen_to_canvas(event.position)
 		if drawing:
-			current_point = _constrained_point(event.position)
+			current_point = _constrained_point(canvas_point)
 			queue_redraw()
 		elif dragging_wall:
-			_pointer_drag(event.position)
+			_pointer_drag(canvas_point)
 		elif tool_mode == "measure" and measurement_active:
-			measurement_end = _snap(event.position)
+			measurement_end = _snap(canvas_point)
 			queue_redraw()
+		accept_event()
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_pointer_down(_screen_to_canvas(event.position))
+		else:
+			_pointer_up(_screen_to_canvas(event.position))
+		accept_event()
+	elif event is InputEventMouseMotion:
+		var canvas_point := _screen_to_canvas(event.position)
+		if drawing:
+			current_point = _constrained_point(canvas_point)
+			queue_redraw()
+		elif dragging_wall:
+			_pointer_drag(canvas_point)
+		elif tool_mode == "measure" and measurement_active:
+			measurement_end = _snap(canvas_point)
+			queue_redraw()
+
 
 func _pointer_down(point: Vector2) -> void:
 	if tool_mode == "draw":
