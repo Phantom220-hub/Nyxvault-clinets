@@ -33,6 +33,8 @@ var select_walls_3d := false
 var draw_walls_3d := false
 var wall_3d_has_start := false
 var wall_3d_start_point := Vector2.ZERO
+var edit_wall_ends_3d := false
+var wall_3d_endpoint_pick: Dictionary = {}
 var material_theme := 0
 var project_dialog: FileDialog
 var dimensions_enabled := true
@@ -121,6 +123,7 @@ func _build_interface() -> void:
 	_add_button(tools, "MOVE 3D", _toggle_3d_move, false)
 	_add_button(tools, "ВЫБРАТЬ СТЕНУ 3D", _toggle_3d_wall_select, false)
 	_add_button(tools, "СТЕНА В 3D", _toggle_3d_wall_draw, false)
+	_add_button(tools, "КОНЦЫ СТЕН 3D", _toggle_3d_wall_endpoint_edit, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
@@ -692,7 +695,14 @@ func _on_preview_input(event: InputEvent) -> void:
 			if move_mode_3d:
 				_pick_furniture(_to_viewport_position(event.position))
 		else:
-			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0:
+			var pointer_movement := preview_last_pos.distance_to(event.position)
+			if edit_wall_ends_3d:
+				if pointer_movement >= 12.0 and not wall_3d_endpoint_pick.is_empty():
+					_move_wall_endpoint_from_3d(_to_viewport_position(event.position))
+				elif wall_3d_endpoint_pick.is_empty():
+					status_label.text = "Коснитесь маркера конца стены"
+				wall_3d_endpoint_pick.clear()
+			elif pointer_movement < 12.0:
 				if draw_walls_3d:
 					_handle_3d_wall_tap(_to_viewport_position(event.position))
 				elif select_walls_3d:
@@ -703,7 +713,10 @@ func _on_preview_input(event: InputEvent) -> void:
 	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and preview_dragging:
 		var delta: Vector2 = event.position - preview_last_pos
 		preview_last_pos = event.position
-		if draw_walls_3d:
+		if edit_wall_ends_3d:
+			if not wall_3d_endpoint_pick.is_empty():
+				status_label.text = "Перемещайте выбранный конец стены в плоскости этажа"
+		elif draw_walls_3d:
 			var hit: Variant = _screen_to_floor(_to_viewport_position(event.position))
 			if hit is Vector3 and wall_3d_has_start:
 				var plan_point := _world_to_plan_point(hit)
@@ -725,6 +738,52 @@ func _on_preview_input(event: InputEvent) -> void:
 		camera_distance += 1.0
 		_update_camera()
 
+
+
+func _pick_wall_endpoint_3d(screen_pos: Vector2) -> Dictionary:
+	if not is_instance_valid(view_camera) or current_floor < 0 or current_floor >= floors.size():
+		return {}
+	var floor_data: Dictionary = floors[current_floor]
+	var floor_walls: Array = floor_data.get("walls", [])
+	var base_y := _floor_base_y(current_floor)
+	var best_index := -1
+	var best_endpoint := -1
+	var best_distance := 30.0
+	for wall_index in range(floor_walls.size()):
+		var wall: Dictionary = floor_walls[wall_index]
+		var wall_height := float(wall.get("height_mm", 2800.0)) / 1000.0
+		for endpoint_index in [0, 1]:
+			var point: Vector2 = wall.get("a", Vector2.ZERO) if endpoint_index == 0 else wall.get("b", Vector2.ZERO)
+			var world_point := Vector3((point.x - plan_canvas.size.x * 0.5) / PPM, base_y + wall_height * 0.5, (point.y - plan_canvas.size.y * 0.5) / PPM)
+			if view_camera.is_position_behind(world_point):
+				continue
+			var distance := view_camera.unproject_position(world_point).distance_to(screen_pos)
+			if distance < best_distance:
+				best_distance = distance
+				best_index = wall_index
+				best_endpoint = endpoint_index
+	if best_index < 0:
+		return {}
+	plan_canvas.selected_wall = best_index
+	plan_canvas.queue_redraw()
+	return {"wall_index": best_index, "endpoint_index": best_endpoint}
+
+
+func _move_wall_endpoint_from_3d(screen_pos: Vector2) -> void:
+	var hit: Variant = _screen_to_floor(screen_pos)
+	if not (hit is Vector3):
+		status_label.text = "Не удалось определить новую точку стены"
+		return
+	var wall_index := int(wall_3d_endpoint_pick.get("wall_index", -1))
+	var endpoint_index := int(wall_3d_endpoint_pick.get("endpoint_index", -1))
+	var target := _world_to_plan_point(hit)
+	if plan_canvas.move_wall_endpoint(wall_index, endpoint_index, target):
+		walls = plan_canvas.walls.duplicate(true)
+		_snapshot_floor()
+		status_label.text = "Конец стены перемещён • связанные стены обновлены"
+		_rebuild_3d()
+	else:
+		status_label.text = "Перемещение невозможно: образуется некорректная стена"
 
 func _world_to_plan_point(world_point: Vector3) -> Vector2:
 	return Vector2(
@@ -755,9 +814,27 @@ func _handle_3d_wall_tap(screen_pos: Vector2) -> void:
 		status_label.text = "Стена не создана: длина меньше минимальной"
 
 
+
+func _toggle_3d_wall_endpoint_edit() -> void:
+	edit_wall_ends_3d = not edit_wall_ends_3d
+	if edit_wall_ends_3d:
+		is_3d = true
+		move_mode_3d = false
+		draw_walls_3d = false
+		select_walls_3d = false
+		wall_3d_has_start = false
+		plan_canvas.visible = false
+		preview.visible = true
+		status_label.text = "3D-редактирование концов включено • перетащите маркер конца стены"
+	else:
+		wall_3d_endpoint_pick.clear()
+		status_label.text = "3D-редактирование концов выключено"
+
 func _toggle_3d_wall_draw() -> void:
 	draw_walls_3d = not draw_walls_3d
 	wall_3d_has_start = false
+	edit_wall_ends_3d = false
+	wall_3d_endpoint_pick.clear()
 	if draw_walls_3d:
 		move_mode_3d = false
 		select_walls_3d = false
@@ -772,6 +849,8 @@ func _toggle_3d_wall_select() -> void:
 	select_walls_3d = not select_walls_3d
 	if select_walls_3d:
 		draw_walls_3d = false
+		edit_wall_ends_3d = false
+		wall_3d_endpoint_pick.clear()
 		wall_3d_has_start = false
 		move_mode_3d = false
 		status_label.text = "3D: каснитесь стены для выбора; параметры редактируются через «ПАРАМЕТРЫ СТЕНЫ»"
@@ -828,6 +907,8 @@ func _toggle_3d_move() -> void:
 	move_mode_3d = not move_mode_3d
 	if move_mode_3d:
 		select_walls_3d = false
+		edit_wall_ends_3d = false
+		wall_3d_endpoint_pick.clear()
 		draw_walls_3d = false
 		wall_3d_has_start = false
 	status_label.text = "3D: перетаскивайте выбранную мебель" if move_mode_3d else "3D: перетаскивание камеры"
