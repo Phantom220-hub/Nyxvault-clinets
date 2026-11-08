@@ -41,7 +41,7 @@ var measurement_start := Vector2.ZERO
 var measurement_end := Vector2.ZERO
 var measurement_active := false
 var measurement_visible := false
-var layer_visibility: Dictionary = {"walls": true, "furniture": true, "rooms": true, "dimensions": true}
+var layer_visibility: Dictionary = {"walls": true, "doors": true, "windows": true, "furniture": true, "electrical": true, "plumbing": true, "rooms": true, "dimensions": true}
 var drag_start_walls: Array[Dictionary] = []
 var view_zoom := 1.0
 var view_pan := Vector2.ZERO
@@ -66,11 +66,17 @@ func _draw() -> void:
 
 	for item_index in range(furniture.size()):
 		var item: Dictionary = furniture[item_index]
-		if not bool(layer_visibility.get("furniture", true)):
+		var kind := int(item.get("kind", 0))
+		var object_layer := str(item.get("layer", "furniture"))
+		if object_layer == "furniture":
+			if kind == 13 or kind == 14:
+				object_layer = "electrical"
+			elif kind == 7 or kind == 8 or kind == 9 or kind == 15:
+				object_layer = "plumbing"
+		if not bool(layer_visibility.get(object_layer, true)):
 			continue
 		var world_pos: Vector2 = item.get("position", Vector2.ZERO)
 		var center := Vector2(size.x * 0.5 + world_pos.x * PIXELS_PER_METRE, size.y * 0.5 + world_pos.y * PIXELS_PER_METRE)
-		var kind := int(item.get("kind", 0))
 		var dims := [Vector2(92, 48), Vector2(58, 92), Vector2(72, 48), Vector2(42, 42), Vector2(58, 32), Vector2(88, 32), Vector2(42, 42), Vector2(36, 48), Vector2(82, 40), Vector2(44, 36), Vector2(30, 30), Vector2(26, 26), Vector2(56, 108), Vector2(14, 14), Vector2(12, 14), Vector2(52, 18)]
 		var footprint: Vector2 = dims[clampi(kind, 0, dims.size() - 1)] * float(item.get("scale", 1.0))
 		draw_set_transform(center, float(item.get("rotation", 0.0)), Vector2.ONE)
@@ -94,15 +100,17 @@ func _draw() -> void:
 
 	for i in range(walls.size()):
 		var wall: Dictionary = walls[i]
-		if not bool(layer_visibility.get("walls", true)):
+		var opening_layer := "doors" if str(wall.get("opening", "")) == "door" else "windows" if str(wall.get("opening", "")) == "window" else ""
+		if not bool(layer_visibility.get("walls", true)) and (opening_layer.is_empty() or not bool(layer_visibility.get(opening_layer, true))):
 			continue
 		var a: Vector2 = wall.get("a", Vector2.ZERO)
 		var b: Vector2 = wall.get("b", Vector2.ZERO)
 		var thickness_mm := float(wall.get("thickness_mm", 150.0))
 		var width_px := clampf(Units.mm_to_pixels(thickness_mm), 3.0, 24.0)
 		var color := SELECTED_COLOR if i == selected_wall else WALL_COLOR
-		draw_line(a, b, Color("#0A1118"), width_px + 5.0, true)
-		draw_line(a, b, color, width_px, true)
+		if bool(layer_visibility.get("walls", true)):
+			draw_line(a, b, Color("#0A1118"), width_px + 5.0, true)
+			draw_line(a, b, color, width_px, true)
 		draw_circle(a, 5.0 if i != selected_wall else 7.0, Color("#EAFBF8"))
 		draw_circle(b, 5.0 if i != selected_wall else 7.0, Color("#EAFBF8"))
 		var mid := (a + b) * 0.5
@@ -121,7 +129,7 @@ func _draw() -> void:
 		else:
 			draw_string(ThemeDB.fallback_font, mid + Vector2(7, -10), Units.format_metres(a.distance_to(b) / PIXELS_PER_METRE), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#D9F5F0"))
 		var opening := str(wall.get("opening", ""))
-		if opening == "door" or opening == "window":
+		if (opening == "door" and bool(layer_visibility.get("doors", true))) or (opening == "window" and bool(layer_visibility.get("windows", true))):
 			var wall_length_mm := Units.pixels_to_mm(a.distance_to(b))
 			var opening_offset := float(wall.get("opening_offset_mm", wall_length_mm * 0.5))
 			var opening_point := a.lerp(b, clampf(opening_offset / maxf(wall_length_mm, 1.0), 0.0, 1.0))
