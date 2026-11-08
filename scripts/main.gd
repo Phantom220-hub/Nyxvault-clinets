@@ -44,10 +44,13 @@ var project_dialog: FileDialog
 var dimensions_enabled := true
 var current_project_name := ""
 var autosave_timer: Timer
+var sun_light: DirectionalLight3D
+var shadows_enabled := true
 
 func _ready() -> void:
 	floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []}]
 	_build_interface()
+	_load_user_settings()
 	_rebuild_3d()
 	_setup_keyboard_shortcuts()
 	_start_autosave()
@@ -222,11 +225,67 @@ func _close_home_and_tutorial(menu: Control) -> void:
 
 
 func _show_home_settings() -> void:
-	var dialog := AcceptDialog.new()
+	var dialog := ConfirmationDialog.new()
 	dialog.title = "Настройки DREAMHOUSE 3D"
-	dialog.dialog_text = "Приложение работает офлайн. Настройки графики и интерфейса будут добавлены отдельно."
+	dialog.min_size = Vector2i(420, 340)
+	var form := VBoxContainer.new()
+	form.add_theme_constant_override("separation", 12)
+	dialog.add_child(form)
+	var grid_check := CheckButton.new()
+	grid_check.text = "Привязка к сетке"
+	grid_check.button_pressed = plan_canvas.snap_enabled
+	form.add_child(grid_check)
+	var angle_check := CheckButton.new()
+	angle_check.text = "Привязка угла 15°"
+	angle_check.button_pressed = plan_canvas.angle_snap_enabled
+	form.add_child(angle_check)
+	var dimensions_check := CheckButton.new()
+	dimensions_check.text = "Размерные линии"
+	dimensions_check.button_pressed = dimensions_enabled
+	form.add_child(dimensions_check)
+	var shadows_check := CheckButton.new()
+	shadows_check.text = "Тени в 3D (выше нагрузка)"
+	shadows_check.button_pressed = shadows_enabled
+	form.add_child(shadows_check)
+	var hint := Label.new()
+	hint.text = "Настройки сохраняются на этом устройстве. Проектирование и сохранение работают офлайн."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	form.add_child(hint)
+	dialog.confirmed.connect(func():
+		plan_canvas.snap_enabled = grid_check.button_pressed
+		plan_canvas.set_angle_snap_enabled(angle_check.button_pressed)
+		dimensions_enabled = dimensions_check.button_pressed
+		plan_canvas.set_dimensions_visible(dimensions_enabled)
+		shadows_enabled = shadows_check.button_pressed
+		if is_instance_valid(sun_light):
+			sun_light.shadow_enabled = shadows_enabled
+		_save_user_settings()
+		status_label.text = "Настройки сохранены"
+	)
 	add_child(dialog)
 	dialog.popup_centered()
+
+
+func _load_user_settings() -> void:
+	var config := ConfigFile.new()
+	if config.load("user://settings.cfg") != OK:
+		return
+	plan_canvas.snap_enabled = bool(config.get_value("drawing", "grid_snap", true))
+	plan_canvas.set_angle_snap_enabled(bool(config.get_value("drawing", "angle_snap", true)))
+	dimensions_enabled = bool(config.get_value("drawing", "dimensions", true))
+	plan_canvas.set_dimensions_visible(dimensions_enabled)
+	shadows_enabled = bool(config.get_value("rendering", "shadows", true))
+
+
+func _save_user_settings() -> void:
+	var config := ConfigFile.new()
+	config.set_value("drawing", "grid_snap", plan_canvas.snap_enabled)
+	config.set_value("drawing", "angle_snap", plan_canvas.angle_snap_enabled)
+	config.set_value("drawing", "dimensions", dimensions_enabled)
+	config.set_value("rendering", "shadows", shadows_enabled)
+	var result := config.save("user://settings.cfg")
+	if result != OK:
+		status_label.text = "Не удалось сохранить настройки"
 
 
 func _build_interface() -> void:
@@ -819,11 +878,11 @@ func _setup_3d(_viewport: SubViewport) -> void:
 	preview_world.add_child(view_camera)
 	_update_camera()
 	view_camera.current = true
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-48, -32, 0)
-	sun.light_energy = 1.4
-	sun.shadow_enabled = true
-	preview_world.add_child(sun)
+	sun_light = DirectionalLight3D.new()
+	sun_light.rotation_degrees = Vector3(-48, -32, 0)
+	sun_light.light_energy = 1.4
+	sun_light.shadow_enabled = shadows_enabled
+	preview_world.add_child(sun_light)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0, 5, 0)
 	fill.light_energy = 0.55
