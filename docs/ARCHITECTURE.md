@@ -18,6 +18,10 @@ A wall dictionary currently contains:
 - height_mm: wall height in millimetres.
 - load_bearing: user-assigned classification flag only.
 - opening: currently empty, door or window.
+- opening_width_mm: opening width.
+- opening_offset_mm: distance from wall start to opening centre.
+- opening_height_mm: door/window clear height.
+- sill_height_mm: window sill elevation.
 
 Future schema additions should include a stable wall ID, wall construction/type, opening records with offsets and dimensions, per-face finishes, level ID, and explicit constraints.
 
@@ -39,4 +43,4 @@ Future schema additions should include a stable wall ID, wall construction/type,
 
 ## Known limitations
 
-The current room-area routine is a preliminary graph-cycle search, not a robust planar subdivision engine. The current 3D scene is rebuilt procedurally and uses simple box meshes. Wall openings are centered and only assigned when creating a wall. No Godot runtime parse or Android device test has yet been completed in the current development environment.
+The current room-area routine is a preliminary graph-cycle search, not a robust planar subdivision engine. The current 3D scene is rebuilt procedurally and uses simple box meshes. Wall openings can be assigned to a selected wall and their width, offset, height and sill height are editable. Door leaf geometry, frame detailing and collision validation are not implemented. No Godot runtime parse or Android device test has yet been completed in the current development environment.
