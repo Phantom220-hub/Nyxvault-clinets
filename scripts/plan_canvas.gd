@@ -227,7 +227,7 @@ func delete_selected_wall() -> bool:
 	return true
 
 func set_selected_wall_length_mm(length_mm: float) -> bool:
-	if selected_wall < 0 or selected_wall >= walls.size() or length_mm < 100.0:
+	if selected_wall < 0 or selected_wall >= walls.size() or length_mm < 200.0:
 		return false
 	var wall: Dictionary = walls[selected_wall]
 	_record_history()
@@ -258,6 +258,8 @@ func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, 
 	var a: Vector2 = wall.get("a", Vector2.ZERO)
 	var b: Vector2 = wall.get("b", Vector2.ZERO)
 	var length_mm := Units.pixels_to_mm(a.distance_to(b))
+	if not kind.is_empty() and length_mm < 600.0:
+		return false
 	if kind.is_empty():
 		_record_history()
 		wall["opening"] = ""
@@ -265,7 +267,7 @@ func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, 
 		wall.erase("opening_offset_mm")
 		wall.erase("sill_height_mm")
 	else:
-		var minimum_width := 500.0
+		var minimum_width := 300.0
 		var safe_width := clampf(width_mm, minimum_width, maxf(minimum_width, length_mm - 100.0))
 		var safe_offset := clampf(offset_mm, safe_width * 0.5, maxf(safe_width * 0.5, length_mm - safe_width * 0.5))
 		_record_history()
@@ -283,6 +285,8 @@ func apply_selected_wall_settings(length_mm: float, thickness_mm: float, height_
 	if selected_wall < 0 or selected_wall >= walls.size() or length_mm < 100.0:
 		return false
 	if opening_kind != "" and opening_kind != "door" and opening_kind != "window":
+		return false
+	if not opening_kind.is_empty() and length_mm < 600.0:
 		return false
 	var wall: Dictionary = walls[selected_wall].duplicate(true)
 	var a: Vector2 = wall.get("a", Vector2.ZERO)
@@ -303,7 +307,7 @@ func apply_selected_wall_settings(length_mm: float, thickness_mm: float, height_
 		wall.erase("opening_height_mm")
 		wall.erase("sill_height_mm")
 	else:
-		var safe_width := clampf(opening_width_mm, 500.0, maxf(500.0, length_mm - 100.0))
+		var safe_width := clampf(opening_width_mm, 300.0, maxf(300.0, length_mm - 100.0))
 		wall["opening"] = opening_kind
 		wall["opening_width_mm"] = safe_width
 		wall["opening_offset_mm"] = clampf(opening_offset_mm, safe_width * 0.5, maxf(safe_width * 0.5, length_mm - safe_width * 0.5))
