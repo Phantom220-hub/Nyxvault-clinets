@@ -1,5 +1,20 @@
 # DreamHouse 3D — architecture notes
 
+## Offline-first contract (mandatory)
+
+DreamHouse 3D is a fully local application. Normal app use must work with airplane mode enabled and must never depend on a server, account, API key, cloud storage, remote catalog, online font, remote texture, analytics SDK or network license.
+
+- Android export explicitly disables the INTERNET permission.
+- All interface code, geometry, procedural models, materials and default content are bundled in the APK.
+- Project creation, editing, undo/redo, floor switching, 2D/3D viewing, calculations, save/load and import/export operate on local device storage only.
+- Project files use local JSON. Do not add cloud sync or remote project paths.
+- Future furniture/material libraries must ship inside the app or be imported by the user from local files.
+- Future PDF/DXF/BIM export, drawing generation, quantity takeoff and validation must run locally.
+- No feature may silently fall back to a network service. If an optional local asset is absent, show a local error and keep the rest of the app usable.
+- Any proposed network-dependent feature is out of scope unless the owner explicitly changes this contract.
+
+The CI pipeline includes a source scan that rejects common Godot networking APIs and remote URL references in runtime project files. This is a guardrail, not a mathematical proof; the exported APK must still be checked on a real device in airplane mode.
+
 ## Coordinate and unit contract
 
 - 2D canvas coordinates are measured in pixels from the top-left of the drawing viewport.
@@ -43,4 +58,4 @@ Future schema additions should include a stable wall ID, wall construction/type,
 
 ## Known limitations
 
-The current room-area routine is a preliminary graph-cycle search, not a robust planar subdivision engine. The current 3D scene is rebuilt procedurally and uses simple box meshes. Wall openings can be assigned to a selected wall and their width, offset, height and sill height are editable. Door leaf geometry, frame detailing and collision validation are not implemented. No Godot runtime parse or Android device test has yet been completed in the current development environment.
+The current room-area routine is a preliminary graph-cycle search, not a robust planar subdivision engine. The current 3D scene is rebuilt procedurally and uses simple box meshes. Wall openings can be assigned to a selected wall and their width, offset, height and sill height are editable. Door leaf geometry, frame detailing and collision validation are not implemented. CI has built an Android debug APK, but this is not equivalent to full runtime testing on a physical Android device.
