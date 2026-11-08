@@ -78,6 +78,13 @@ func _build_interface() -> void:
 	_add_button(tools, "РИСОВАТЬ СТЕНЫ", _wall_draw_mode, false)
 	_add_button(tools, "УГОЛ 15°: ВКЛ", _toggle_angle_snap, false)
 	_add_button(tools, "РАЗМЕРЫ: ВКЛ", _toggle_dimensions, false)
+	_add_button(tools, "СТЕНА ПО РАЗМЕРАМ", _numeric_wall_dialog, false)
+	_add_button(tools, "РАЗДЕЛИТЬ СТЕНУ", _split_selected_wall_dialog, false)
+	_add_button(tools, "ОБЪЕДИНИТЬ СТЕНУ", _merge_selected_wall, false)
+	_add_button(tools, "КОПИЯ СТЕНЫ", _copy_selected_wall, false)
+	_add_button(tools, "ЗЕРКАЛО СТЕНЫ", _mirror_selected_wall, false)
+	_add_button(tools, "МАССИВ СТЕНЫ", _array_selected_wall_dialog, false)
+	_add_button(tools, "УЗЛЫ: РЕШИТЬ", _resolve_wall_intersections, false)
 	_add_button(tools, "ВЫБРАТЬ СТЕНУ", _wall_select_mode, false)
 	_add_button(tools, "ПАРАМЕТРЫ СТЕНЫ", _edit_selected_wall, false)
 	_add_button(tools, "УДАЛИТЬ СТЕНУ", _delete_selected_wall, false)
@@ -231,6 +238,130 @@ func _set_opening(kind: String) -> void:
 func _toggle_angle_snap() -> void:
 	plan_canvas.set_angle_snap_enabled(not plan_canvas.angle_snap_enabled)
 	status_label.text = "Ограничение угла 15°: " + ("включено" if plan_canvas.angle_snap_enabled else "выключено")
+
+
+func _numeric_wall_dialog() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Точное построение стены"
+	dialog.min_size = Vector2i(360, 420)
+	var form := VBoxContainer.new()
+	form.add_theme_constant_override("separation", 7)
+	dialog.add_child(form)
+	var x_input := SpinBox.new()
+	x_input.min_value = -100000.0
+	x_input.max_value = 100000.0
+	x_input.step = 50.0
+	x_input.value = 0.0
+	_labeled_control(form, "X начала относительно центра плана (mm)", x_input)
+	var y_input := SpinBox.new()
+	y_input.min_value = -100000.0
+	y_input.max_value = 100000.0
+	y_input.step = 50.0
+	y_input.value = 0.0
+	_labeled_control(form, "Y начала относительно центра плана (mm)", y_input)
+	var length_input := SpinBox.new()
+	length_input.min_value = 200.0
+	length_input.max_value = 100000.0
+	length_input.step = 50.0
+	length_input.value = 4000.0
+	_labeled_control(form, "Длина стены (mm)", length_input)
+	var angle_input := SpinBox.new()
+	angle_input.min_value = -360.0
+	angle_input.max_value = 360.0
+	angle_input.step = 0.5
+	angle_input.value = 0.0
+	angle_input.allow_greater = true
+	angle_input.allow_lesser = true
+	_labeled_control(form, "Угол от горизонтали (градусы)", angle_input)
+	dialog.confirmed.connect(func():
+		if plan_canvas.add_wall_by_dimensions(Vector2(x_input.value, y_input.value), length_input.value, angle_input.value):
+			status_label.text = "Точная стена создана • %.0f mm • %.1f°" % [length_input.value, angle_input.value]
+		else:
+			status_label.text = "Не удалось создать стену: проверьте длину и координаты"
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+
+func _split_selected_wall_dialog() -> void:
+	var wall := plan_canvas.get_selected_wall()
+	if wall.is_empty():
+		status_label.text = "Сначала выберите стену"
+		return
+	var a: Vector2 = wall.get("a", Vector2.ZERO)
+	var b: Vector2 = wall.get("b", Vector2.ZERO)
+	var length_mm := Units.pixels_to_mm(a.distance_to(b))
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Разделить стену"
+	var input := SpinBox.new()
+	input.min_value = 200.0
+	input.max_value = maxf(200.0, length_mm - 200.0)
+	input.step = 50.0
+	input.value = length_mm * 0.5
+	var form := VBoxContainer.new()
+	_labeled_control(form, "Расстояние от начала выбранной стены (mm)", input)
+	dialog.add_child(form)
+	dialog.confirmed.connect(func():
+		status_label.text = "Стена разделена" if plan_canvas.split_selected_wall_at_mm(input.value) else "Разделение невозможно: близко к краю или пересекает проём"
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+
+func _merge_selected_wall() -> void:
+	status_label.text = "Стены объединены" if plan_canvas.merge_selected_wall_with_neighbor() else "Не найдено единственной коллинеарной соседней стены с совпадающими параметрами"
+
+
+func _copy_selected_wall() -> void:
+	status_label.text = "Создана копия стены со смещением 250 mm" if plan_canvas.duplicate_selected_wall() else "Сначала выберите стену"
+
+
+func _mirror_selected_wall() -> void:
+	status_label.text = "Создана зеркальная копия относительно центральной вертикальной оси плана" if plan_canvas.mirror_selected_wall() else "Сначала выберите стену"
+
+
+func _array_selected_wall_dialog() -> void:
+	if plan_canvas.get_selected_wall().is_empty():
+		status_label.text = "Сначала выберите стену"
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Линейный массив стен"
+	var form := VBoxContainer.new()
+	var count_input := SpinBox.new()
+	count_input.min_value = 1
+	count_input.max_value = 20
+	count_input.step = 1
+	count_input.value = 3
+	_labeled_control(form, "Количество дополнительных копий", count_input)
+	var spacing_input := SpinBox.new()
+	spacing_input.min_value = 100.0
+	spacing_input.max_value = 20000.0
+	spacing_input.step = 50.0
+	spacing_input.value = 1000.0
+	_labeled_control(form, "Расстояние между копиями (mm)", spacing_input)
+	dialog.add_child(form)
+	dialog.confirmed.connect(func():
+		var ok := plan_canvas.array_selected_wall(int(count_input.value), spacing_input.value)
+		status_label.text = "Массив создан" if ok else "Не удалось создать массив"
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+
+func _resolve_wall_intersections() -> void:
+	var result := plan_canvas.resolve_wall_intersections()
+	if not bool(result.get("ok", false)):
+		var error := str(result.get("error", "unknown"))
+		var messages := {
+			"intersection_crosses_opening": "Узел попадает в дверной/оконный проём. Переместите проём.",
+			"intersection_creates_tiny_segment": "Соединение создаёт слишком короткий сегмент.",
+			"invalid_wall": "В проекте обнаружена некорректная стена."
+		}
+		status_label.text = str(messages.get(error, "Не удалось разрешить пересечения стен: " + error))
+	elif bool(result.get("changed", false)):
+		status_label.text = "Топология обновлена • сегментов стен: %d" % int(result.get("count", 0))
+	else:
+		status_label.text = "Новых пересечений для разделения не найдено"
 
 func _toggle_dimensions() -> void:
 	dimensions_enabled = not dimensions_enabled
