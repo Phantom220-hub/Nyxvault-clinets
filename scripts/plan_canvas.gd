@@ -78,7 +78,10 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, mid + Vector2(7, -10), Units.format_metres(a.distance_to(b) / PIXELS_PER_METRE), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#D9F5F0"))
 		var opening := str(wall.get("opening", ""))
 		if opening == "door" or opening == "window":
-			draw_string(ThemeDB.fallback_font, mid + Vector2(7, 15), "ДВЕРЬ" if opening == "door" else "ОКНО", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#FFC878"))
+			var wall_length_mm := Units.pixels_to_mm(a.distance_to(b))
+			var opening_offset := float(wall.get("opening_offset_mm", wall_length_mm * 0.5))
+			var opening_point := a.lerp(b, clampf(opening_offset / maxf(wall_length_mm, 1.0), 0.0, 1.0))
+			draw_string(ThemeDB.fallback_font, opening_point + Vector2(7, 15), "ДВЕРЬ" if opening == "door" else "ОКНО", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#FFC878"))
 		if i == selected_wall:
 			draw_circle(a, 9.0, Color("#FFCA78", 0.28))
 			draw_circle(b, 9.0, Color("#FFCA78", 0.28))
@@ -241,6 +244,35 @@ func set_selected_wall_properties(thickness_mm: float, height_mm: float, load_be
 	wall["thickness_mm"] = clampf(thickness_mm, 50.0, 1000.0)
 	wall["height_mm"] = clampf(height_mm, 1800.0, 10000.0)
 	wall["load_bearing"] = load_bearing
+	walls[selected_wall] = wall
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, sill_height_mm: float = 850.0) -> bool:
+	if selected_wall < 0 or selected_wall >= walls.size():
+		return false
+	if kind != "" and kind != "door" and kind != "window":
+		return false
+	var wall: Dictionary = walls[selected_wall].duplicate(true)
+	var a: Vector2 = wall.get("a", Vector2.ZERO)
+	var b: Vector2 = wall.get("b", Vector2.ZERO)
+	var length_mm := Units.pixels_to_mm(a.distance_to(b))
+	if kind.is_empty():
+		_record_history()
+		wall["opening"] = ""
+		wall.erase("opening_width_mm")
+		wall.erase("opening_offset_mm")
+		wall.erase("sill_height_mm")
+	else:
+		var minimum_width := 500.0
+		var safe_width := clampf(width_mm, minimum_width, maxf(minimum_width, length_mm - 100.0))
+		var safe_offset := clampf(offset_mm, safe_width * 0.5, maxf(safe_width * 0.5, length_mm - safe_width * 0.5))
+		_record_history()
+		wall["opening"] = kind
+		wall["opening_width_mm"] = safe_width
+		wall["opening_offset_mm"] = safe_offset
+		wall["sill_height_mm"] = clampf(sill_height_mm, 0.0, 2500.0)
 	walls[selected_wall] = wall
 	walls_changed.emit()
 	queue_redraw()
