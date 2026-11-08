@@ -305,7 +305,8 @@ func _update_camera() -> void:
 	camera_distance = clampf(camera_distance, 5.0, 34.0)
 	var horizontal := camera_distance * cos(camera_pitch)
 	view_camera.position = Vector3(sin(camera_yaw) * horizontal, -sin(camera_pitch) * camera_distance, cos(camera_yaw) * horizontal)
-	view_camera.look_at(Vector3.ZERO, Vector3.UP)
+	var building_center_y := maxf(0.0, float(floors.size() - 1) * 1.6)
+	view_camera.look_at(Vector3(0.0, building_center_y, 0.0), Vector3.UP)
 
 func _on_preview_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT):
@@ -313,16 +314,16 @@ func _on_preview_input(event: InputEvent) -> void:
 			preview_dragging = true
 			preview_last_pos = event.position
 			if move_mode_3d:
-				_pick_furniture(event.position)
+				_pick_furniture(_to_viewport_position(event.position))
 		else:
 			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0 and not move_mode_3d:
-				_pick_furniture(event.position)
+				_pick_furniture(_to_viewport_position(event.position))
 			preview_dragging = false
 	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and preview_dragging:
 		var delta := event.position - preview_last_pos
 		preview_last_pos = event.position
 		if move_mode_3d and selected_furniture >= 0:
-			var hit: Variant = _screen_to_floor(event.position)
+			var hit: Variant = _screen_to_floor(_to_viewport_position(event.position))
 			if hit is Vector3:
 				furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
 				_sync_plan_furniture()
@@ -337,6 +338,12 @@ func _on_preview_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		camera_distance += 1.0
 		_update_camera()
+
+func _to_viewport_position(container_pos: Vector2) -> Vector2:
+	var viewport := preview.get_child(0) as SubViewport
+	if viewport == null or preview.size.x <= 0.0 or preview.size.y <= 0.0:
+		return container_pos
+	return container_pos * Vector2(viewport.size) / preview.size
 
 func _screen_to_floor(screen_pos: Vector2) -> Variant:
 	var origin := view_camera.project_ray_origin(screen_pos)
@@ -430,6 +437,7 @@ func _delete_selected() -> void:
 func _rebuild_3d() -> void:
 	if not is_instance_valid(preview_world):
 		return
+	_snapshot_floor()
 	for child in preview_world.get_children():
 		if child.is_in_group("generated"):
 			child.queue_free()
@@ -440,55 +448,60 @@ func _rebuild_3d() -> void:
 	var wall_colors := [Color("#F0E9DC"), Color("#D8C3A5"), Color("#C7CED2")]
 	var floor_mat := _mat(floor_colors[material_theme], 0.95)
 	var grid_mat := _mat(Color("#B8B1A4"), 0.8)
-	_box(root, Vector3(24, 0.12, 24), Vector3(0, -0.12, 0), floor_mat)
+	var wall_mat := _mat(wall_colors[material_theme], 0.82)
+	var trim_mat := _mat(Color("#BDAA8F"), 0.6)
+	var glass := _mat(Color("#79CDE0", 0.42), 0.18)
 	for i in range(-12, 13):
 		_box(root, Vector3(0.012, 0.006, 24), Vector3(i, -0.055, 0), grid_mat)
 		_box(root, Vector3(24, 0.006, 0.012), Vector3(0, -0.054, i), grid_mat)
-	var wall_mat := _mat(wall_colors[material_theme], 0.82)
-	var trim_mat := _mat(Color("#BDAA8F"), 0.6)
-	for wall in walls:
-		var a: Vector2 = wall.a
-		var b: Vector2 = wall.b
-		var mid := (a + b) * 0.5
-		var length := a.distance_to(b) / PPM
-		var angle := atan2(b.y - a.y, b.x - a.x)
-		var center := Vector3((mid.x - plan_canvas.size.x * 0.5) / PPM, 1.4, (mid.y - plan_canvas.size.y * 0.5) / PPM)
-		var opening := str(wall.get("opening", ""))
-		var direction := Vector3(cos(angle), 0, sin(angle))
-		if opening == "door" or opening == "window":
-			var opening_width := 0.95 if opening == "door" else 1.25
-			var gap := minf(opening_width, maxf(length - 0.25, 0.0))
-			var side_length := maxf((length - gap) * 0.5, 0.06)
-			for side in [-1.0, 1.0]:
-				var side_center := center + direction * side * (gap * 0.5 + side_length * 0.5)
-				var side_wall := _box(root, Vector3(side_length, WALL_HEIGHT, 0.16), side_center, wall_mat)
-				side_wall.rotation.y = -angle
-			if opening == "door":
-				var lintel := _box(root, Vector3(gap, WALL_HEIGHT - 2.05, 0.16), center + Vector3(0, 2.05 + (WALL_HEIGHT - 2.05) * 0.5, 0), wall_mat)
-				lintel.rotation.y = -angle
+	for floor_index in range(floors.size()):
+		var floor_data: Dictionary = floors[floor_index]
+		var base_y := float(floor_index) * (WALL_HEIGHT + 0.22)
+		_box(root, Vector3(24, 0.12, 24), Vector3(0, base_y - 0.12, 0), floor_mat)
+		for wall in floor_data.get("walls", []):
+			var a: Vector2 = wall.a
+			var b: Vector2 = wall.b
+			var mid := (a + b) * 0.5
+			var length := a.distance_to(b) / PPM
+			var angle := atan2(b.y - a.y, b.x - a.x)
+			var center := Vector3((mid.x - plan_canvas.size.x * 0.5) / PPM, base_y + 1.4, (mid.y - plan_canvas.size.y * 0.5) / PPM)
+			var opening := str(wall.get("opening", ""))
+			var direction := Vector3(cos(angle), 0, sin(angle))
+			if opening == "door" or opening == "window":
+				var opening_width := 0.95 if opening == "door" else 1.25
+				var gap := minf(opening_width, maxf(length - 0.25, 0.0))
+				var side_length := maxf((length - gap) * 0.5, 0.06)
+				for side in [-1.0, 1.0]:
+					var side_center := center + direction * side * (gap * 0.5 + side_length * 0.5)
+					var side_wall := _box(root, Vector3(side_length, WALL_HEIGHT, 0.16), side_center, wall_mat)
+					side_wall.rotation.y = -angle
+				if opening == "door":
+					var lintel := _box(root, Vector3(gap, WALL_HEIGHT - 2.05, 0.16), center + Vector3(0, 2.05 + (WALL_HEIGHT - 2.05) * 0.5, 0), wall_mat)
+					lintel.rotation.y = -angle
+				else:
+					var sill := _box(root, Vector3(gap, 0.85, 0.16), center + Vector3(0, 0.425, 0), wall_mat)
+					var header := _box(root, Vector3(gap, 0.75, 0.16), center + Vector3(0, 2.425, 0), wall_mat)
+					sill.rotation.y = -angle
+					header.rotation.y = -angle
+					var pane := _box(root, Vector3(gap * 0.94, 1.0, 0.035), center + Vector3(0, 1.35, 0), glass)
+					pane.rotation.y = -angle
 			else:
-				var sill := _box(root, Vector3(gap, 0.85, 0.16), center + Vector3(0, 0.425, 0), wall_mat)
-				var header := _box(root, Vector3(gap, 0.75, 0.16), center + Vector3(0, 2.425, 0), wall_mat)
-				sill.rotation.y = -angle
-				header.rotation.y = -angle
-				var glass := _mat(Color("#79CDE0", 0.42), 0.18)
-				var pane := _box(root, Vector3(gap * 0.94, 1.0, 0.035), center + Vector3(0, 1.35, 0), glass)
-				pane.rotation.y = -angle
-		else:
-			var segment := _box(root, Vector3(maxf(length, 0.12), WALL_HEIGHT, 0.16), center, wall_mat)
-			segment.rotation.y = -angle
-		var skirting := _box(root, Vector3(maxf(length, 0.12), 0.1, 0.19), Vector3(center.x, 0.1, center.z), trim_mat)
-		skirting.rotation.y = -angle
-		var crown := _box(root, Vector3(maxf(length, 0.12), 0.07, 0.19), Vector3(center.x, WALL_HEIGHT - 0.035, center.z), trim_mat)
-		crown.rotation.y = -angle
-	for item in furniture:
-		_add_furniture(root, item)
+				var segment := _box(root, Vector3(maxf(length, 0.12), WALL_HEIGHT, 0.16), center, wall_mat)
+				segment.rotation.y = -angle
+			var skirting := _box(root, Vector3(maxf(length, 0.12), 0.1, 0.19), Vector3(center.x, base_y + 0.1, center.z), trim_mat)
+			skirting.rotation.y = -angle
+			var crown := _box(root, Vector3(maxf(length, 0.12), 0.07, 0.19), Vector3(center.x, base_y + WALL_HEIGHT - 0.035, center.z), trim_mat)
+			crown.rotation.y = -angle
+		for item in floor_data.get("furniture", []):
+			_add_furniture(root, item, base_y)
+	if floors.size() > 1:
+		status_label.text = "3D • показаны все этажи: %d" % floors.size()
 
-func _add_furniture(root: Node3D, item: Dictionary) -> void:
+func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0) -> void:
 	var kind := int(item.get("kind", 0))
 	var p: Vector2 = item.get("position", Vector2.ZERO)
 	var group := Node3D.new()
-	group.position = Vector3(p.x, 0, p.y)
+	group.position = Vector3(p.x, floor_y, p.y)
 	group.rotation.y = float(item.get("rotation", 0.0))
 	group.scale = Vector3.ONE * float(item.get("scale", 1.0))
 	root.add_child(group)
