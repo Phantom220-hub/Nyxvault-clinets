@@ -417,6 +417,34 @@ func add_wall_by_dimensions(start_mm: Vector2, length_mm: float, angle_degrees: 
 	return true
 
 
+
+func add_wall_between_points(start_point_px: Vector2, end_point_px: Vector2, constrain_angle: bool = true, thickness_mm: float = 150.0, height_mm: float = 2800.0) -> bool:
+	var a := _snap(start_point_px)
+	var b := _snap(end_point_px)
+	if constrain_angle and angle_snap_enabled:
+		b = Geometry.constrain_angle(a, b, angle_snap_degrees)
+		b = _snap(b)
+	if a.distance_to(b) < Geometry.MIN_WALL_LENGTH_PX:
+		return false
+	var wall := {
+		"a": a,
+		"b": b,
+		"thickness_mm": clampf(thickness_mm, 50.0, 1000.0),
+		"height_mm": clampf(height_mm, 1800.0, 10000.0),
+		"load_bearing": false,
+		"opening": "",
+		"layer": "walls"
+	}
+	if not Geometry.valid_wall(wall):
+		return false
+	_record_history()
+	walls.append(wall)
+	selected_wall = walls.size() - 1
+	wall_created.emit(a, b)
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
 func split_selected_wall_at_mm(distance_mm: float) -> bool:
 	if selected_wall < 0 or selected_wall >= walls.size():
 		return false
