@@ -8,6 +8,10 @@ on:
       - "**.gd"
       - "**.tscn"
       - "**.tres"
+      - "**.jpg"
+      - "**.jpeg"
+      - "**.png"
+      - "**.webp"
       - "project.godot"
       - "export_presets.cfg"
       - ".github/workflows/android-apk.yml"
@@ -78,12 +82,12 @@ jobs:
         run: |
           mkdir -p build
           godot --headless --path . --export-debug "Android" build/DreamHouse-3D.apk
-          test -s build/DreamHouse3D-debug.apk
+          test -s build/DreamHouse-3D.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: DreamHouse-3D-apk
-          path: build/DreamHouse3D-debug.apk
+          path: build/DreamHouse-3D.apk
           if-no-files-found: error
           retention-days: 14
