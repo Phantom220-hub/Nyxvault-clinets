@@ -16,6 +16,9 @@ const SELECTED_COLOR := Color("#FFCA78")
 const PIXELS_PER_METRE := 48.0
 
 var walls: Array[Dictionary] = []
+var undo_history: Array = []
+var redo_history: Array = []
+const MAX_HISTORY := 60
 var furniture: Array[Dictionary] = []
 var selected_furniture := -1
 var selected_wall := -1
@@ -136,6 +139,7 @@ func _pointer_down(point: Vector2) -> void:
 	else:
 		_select_wall_at(point)
 		if selected_wall >= 0:
+			_record_history()
 			var wall: Dictionary = walls[selected_wall]
 			var a: Vector2 = wall.a
 			var b: Vector2 = wall.b
@@ -180,6 +184,7 @@ func _pointer_up(point: Vector2) -> void:
 		current_point = _snap(point)
 		drawing = false
 		if start_point.distance_to(current_point) >= grid_size:
+			_record_history()
 			var new_wall := {"a": start_point, "b": current_point, "thickness_mm": 150.0, "height_mm": 2800.0, "load_bearing": false, "opening": ""}
 			walls.append(new_wall)
 			selected_wall = walls.size() - 1
@@ -209,6 +214,7 @@ func delete_selected_wall() -> bool:
 	if selected_wall < 0 or selected_wall >= walls.size():
 		return false
 	var removed := selected_wall
+	_record_history()
 	walls.remove_at(removed)
 	selected_wall = -1
 	wall_deleted.emit(removed)
@@ -220,6 +226,7 @@ func set_selected_wall_length_mm(length_mm: float) -> bool:
 	if selected_wall < 0 or selected_wall >= walls.size() or length_mm < 100.0:
 		return false
 	var wall: Dictionary = walls[selected_wall]
+	_record_history()
 	walls[selected_wall] = Geometry.resized_to_length(wall, Units.mm_to_pixels(length_mm))
 	walls_changed.emit()
 	queue_redraw()
@@ -229,6 +236,7 @@ func set_selected_wall_properties(thickness_mm: float, height_mm: float, load_be
 	if selected_wall < 0 or selected_wall >= walls.size():
 		return false
 	var wall: Dictionary = walls[selected_wall]
+	_record_history()
 	wall["thickness_mm"] = clampf(thickness_mm, 50.0, 1000.0)
 	wall["height_mm"] = clampf(height_mm, 1800.0, 10000.0)
 	wall["load_bearing"] = load_bearing
@@ -242,14 +250,35 @@ func get_selected_wall() -> Dictionary:
 		return {}
 	return walls[selected_wall].duplicate(true)
 
-func undo() -> void:
-	if not walls.is_empty():
-		walls.pop_back()
-		selected_wall = -1
-		walls_changed.emit()
-		queue_redraw()
+func _record_history() -> void:
+	undo_history.append(walls.duplicate(true))
+	if undo_history.size() > MAX_HISTORY:
+		undo_history.pop_front()
+	redo_history.clear()
+
+func undo() -> bool:
+	if undo_history.is_empty():
+		return false
+	redo_history.append(walls.duplicate(true))
+	walls = undo_history.pop_back()
+	selected_wall = -1
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
+func redo() -> bool:
+	if redo_history.is_empty():
+		return false
+	undo_history.append(walls.duplicate(true))
+	walls = redo_history.pop_back()
+	selected_wall = -1
+	walls_changed.emit()
+	queue_redraw()
+	return true
 
 func clear_plan() -> void:
+	if not walls.is_empty():
+		_record_history()
 	walls.clear()
 	selected_wall = -1
 	drawing = false
