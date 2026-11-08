@@ -316,14 +316,9 @@ func _edit_selected_wall() -> void:
 	sill_height.value = float(wall.get("sill_height_mm", 850.0))
 	_labeled_control(form, "Высота подоконника (mm)", sill_height)
 	dialog.confirmed.connect(func():
-		var valid := plan_canvas.set_selected_wall_length_mm(length_input.value)
-		if valid:
-			plan_canvas.set_selected_wall_properties(thickness_input.value, height_input.value, bearing.button_pressed)
-			var selected_opening := "door" if opening_select.selected == 1 else "window" if opening_select.selected == 2 else ""
-			plan_canvas.set_selected_wall_opening(selected_opening, opening_width.value, opening_offset.value, sill_height.value, opening_height.value)
-			status_label.text = "Параметры стены и проёма обновлены • mm"
-		else:
-			status_label.text = "Не удалось изменить длину стены"
+		var selected_opening := "door" if opening_select.selected == 1 else "window" if opening_select.selected == 2 else ""
+		var valid := plan_canvas.apply_selected_wall_settings(length_input.value, thickness_input.value, height_input.value, bearing.button_pressed, selected_opening, opening_width.value, opening_offset.value, sill_height.value, opening_height.value)
+		status_label.text = "Параметры стены и проёма обновлены • mm" if valid else "Не удалось изменить параметры стены"
 	)
 	add_child(dialog)
 	dialog.popup_centered()
