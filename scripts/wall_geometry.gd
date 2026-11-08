@@ -46,7 +46,11 @@ static func resized_to_length(wall: Dictionary, length_px: float) -> Dictionary:
 static func valid_wall(wall: Dictionary) -> bool:
 	var a: Variant = wall.get("a")
 	var b: Variant = wall.get("b")
-	return a is Vector2 and b is Vector2 and a.distance_to(b) >= MIN_WALL_LENGTH_PX
+	if not (a is Vector2) or not (b is Vector2):
+		return false
+	var start: Vector2 = a
+	var finish: Vector2 = b
+	return start.distance_to(finish) >= MIN_WALL_LENGTH_PX
 
 static func snap_point(point: Vector2, grid: float) -> Vector2:
 	if grid <= 0.0:
