@@ -84,6 +84,7 @@ func _build_interface() -> void:
 	_add_button(tools, "РИСОВАТЬ СТЕНЫ", _wall_draw_mode, false)
 	_add_button(tools, "УГОЛ 15°: ВКЛ", _toggle_angle_snap, false)
 	_add_button(tools, "РАЗМЕРЫ: ВКЛ", _toggle_dimensions, false)
+	_add_button(tools, "ИЗМЕРИТЬ", _measure_mode, false)
 	_add_button(tools, "СТЕНА ПО РАЗМЕРАМ", _numeric_wall_dialog, false)
 	_add_button(tools, "РАЗДЕЛИТЬ СТЕНУ", _split_selected_wall_dialog, false)
 	_add_button(tools, "ОБЪЕДИНИТЬ СТЕНУ", _merge_selected_wall, false)
@@ -143,6 +144,7 @@ func _build_interface() -> void:
 	plan_canvas.wall_created.connect(_on_wall_created)
 	plan_canvas.wall_selected.connect(_on_plan_wall_selected)
 	plan_canvas.walls_changed.connect(_on_plan_walls_changed)
+	plan_canvas.measurement_completed.connect(_on_measurement_completed)
 	add_child(plan_canvas)
 
 	preview = SubViewportContainer.new()
@@ -402,6 +404,14 @@ func _show_layers_dialog() -> void:
 	)
 	add_child(dialog)
 	dialog.popup_centered()
+
+func _measure_mode() -> void:
+	plan_canvas.set_tool_mode("measure")
+	status_label.text = "Измерение: коснитесь начальной и конечной точки"
+
+
+func _on_measurement_completed(distance_m: float, angle_degrees: float) -> void:
+	status_label.text = "Измерено: %.2f m • угол %.1f°" % [distance_m, angle_degrees]
 
 func _toggle_dimensions() -> void:
 	dimensions_enabled = not dimensions_enabled
