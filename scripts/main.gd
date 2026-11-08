@@ -386,7 +386,9 @@ func _build_interface() -> void:
 	_add_button(tools, "УЧАСТОК", _toggle_site, false)
 	_add_button(tools, "ПРОЕКТЫ", _open_project_manager, false)
 	_add_button(tools, "ОБУЧЕНИЕ", _show_tutorial, false)
-	_add_button(tools, "ЭКСПОРТ", _export_project, false)
+	_add_button(tools, "ЭКСПОРТ JSON", _export_project, false)
+	_add_button(tools, "ЭКСПОРТ DXF", _export_dxf, false)
+	_add_button(tools, "PNG ПЛАН", _export_plan_png, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
 	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4], ["Кухонная тумба", 5], ["Холодильник", 6], ["Унитаз", 7], ["Ванна", 8], ["Раковина", 9], ["Растение", 10], ["Торшер", 11], ["Лестница", 12]]:
@@ -2193,6 +2195,55 @@ func _show_building_measurements() -> void:
 	dialog.min_size = Vector2i(620, 560)
 	add_child(dialog)
 	dialog.popup_centered()
+
+func _export_dxf() -> void:
+	var dialog := FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.add_filter("*.dxf", "AutoCAD DXF")
+	dialog.current_file = "dreamhouse_plan.dxf"
+	dialog.file_selected.connect(_write_dxf_file)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(820, 620))
+
+
+func _write_dxf_file(path: String) -> void:
+	var lines: PackedStringArray = ["0", "SECTION", "2", "ENTITIES"]
+	for wall in walls:
+		var a: Vector2 = wall.get("a", Vector2.ZERO)
+		var b: Vector2 = wall.get("b", Vector2.ZERO)
+		var ax := Units.pixels_to_mm(a.x - plan_canvas.size.x * 0.5)
+		var ay := Units.pixels_to_mm(plan_canvas.size.y * 0.5 - a.y)
+		var bx := Units.pixels_to_mm(b.x - plan_canvas.size.x * 0.5)
+		var by := Units.pixels_to_mm(plan_canvas.size.y * 0.5 - b.y)
+		lines.append_array(["0", "LINE", "8", str(wall.get("layer", "WALLS")), "10", str(ax), "20", str(ay), "30", "0", "11", str(bx), "21", str(by), "31", "0"])
+	lines.append_array(["0", "ENDSEC", "0", "EOF"])
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		status_label.text = "Не удалось создать DXF"
+		return
+	file.store_string("\n".join(lines) + "\n")
+	file.close()
+	status_label.text = "DXF экспортирован • %d сегментов" % walls.size()
+
+
+func _export_plan_png() -> void:
+	var image := plan_canvas.get_viewport().get_texture().get_image()
+	if image.is_empty():
+		status_label.text = "Не удалось получить изображение плана"
+		return
+	var dialog := FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.add_filter("*.png", "PNG image")
+	dialog.current_file = "dreamhouse_plan.png"
+	dialog.file_selected.connect(func(path: String):
+		var result := image.save_png(path)
+		status_label.text = "PNG сохранён" if result == OK else "Ошибка сохранения PNG"
+	)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(820, 620))
+
 
 func _export_project() -> void:
 	_save_project()
