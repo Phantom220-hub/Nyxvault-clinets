@@ -153,7 +153,9 @@ func _open_object_menu() -> void:
 
 func _on_object_selected(id: int) -> void:
 	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф"]
-	furniture.append({"kind": id, "position": Vector2.ZERO})
+	var index := furniture.size()
+	var placement := Vector2(float((index % 3) - 1) * 2.4, float(int(index / 3)) * 2.4)
+	furniture.append({"kind": id, "position": placement})
 	status_label.text = "Добавлен объект: %s • Всего: %d" % [names[id], furniture.size()]
 	if is_3d:
 		_rebuild_3d()
