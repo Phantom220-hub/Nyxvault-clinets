@@ -35,7 +35,7 @@ var project_dialog: FileDialog
 var dimensions_enabled := true
 
 func _ready() -> void:
-	floors = [{"walls": [], "furniture": []}]
+	floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []}]
 	_build_interface()
 	_rebuild_3d()
 
@@ -106,6 +106,7 @@ func _build_interface() -> void:
 	_add_button(tools, "+ ЭТАЖ", _add_floor, false)
 	_add_button(tools, "ЭТАЖ ←", func(): _switch_floor(-1), false)
 	_add_button(tools, "ЭТАЖ →", func(): _switch_floor(1), false)
+	_add_button(tools, "НАСТРОЙКИ ЭТАЖА", _edit_current_floor, false)
 	_add_button(tools, "MOVE 3D", _toggle_3d_move, false)
 	_add_button(tools, "ВЫБРАТЬ СТЕНУ 3D", _toggle_3d_wall_select, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
@@ -474,10 +475,12 @@ func _box(parent: Node3D, size_3d: Vector3, pos: Vector3, material: Material) ->
 func _floor_base_y(floor_index: int) -> float:
 	var elevation := 0.0
 	for index in range(mini(floor_index, floors.size())):
-		var level_height := WALL_HEIGHT
-		for wall in floors[index].get("walls", []):
+		var floor_data: Dictionary = floors[index]
+		var level_height := maxf(WALL_HEIGHT, float(floor_data.get("floor_height_mm", 2800.0)) / 1000.0)
+		for wall in floor_data.get("walls", []):
 			level_height = maxf(level_height, float(wall.get("height_mm", 2800.0)) / 1000.0)
-		elevation += level_height + 0.22
+		var slab_thickness := clampf(float(floor_data.get("slab_thickness_mm", 220.0)) / 1000.0, 0.08, 1.0)
+		elevation += level_height + slab_thickness
 	return elevation
 
 func _update_camera() -> void:
@@ -839,11 +842,14 @@ func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0, floor_
 func _snapshot_floor() -> void:
 	if floors.size() <= current_floor:
 		return
-	floors[current_floor] = {"walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}
+	var floor_data: Dictionary = floors[current_floor].duplicate(true)
+	floor_data["walls"] = walls.duplicate(true)
+	floor_data["furniture"] = furniture.duplicate(true)
+	floors[current_floor] = floor_data
 
 func _add_floor() -> void:
 	_snapshot_floor()
-	floors.append({"walls": [], "furniture": []})
+	floors.append({"name": "Этаж %d" % (floors.size() + 1), "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []})
 	current_floor = floors.size() - 1
 	walls.clear()
 	furniture.clear()
@@ -855,6 +861,45 @@ func _add_floor() -> void:
 	if is_3d:
 		_rebuild_3d()
 	status_label.text = "Создан этаж %d из %d" % [current_floor + 1, floors.size()]
+
+func _edit_current_floor() -> void:
+	if current_floor < 0 or current_floor >= floors.size():
+		return
+	var floor_data: Dictionary = floors[current_floor]
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Параметры этажа"
+	dialog.min_size = Vector2i(340, 190)
+	var form := VBoxContainer.new()
+	dialog.add_child(form)
+	var name_input := LineEdit.new()
+	name_input.text = str(floor_data.get("name", "Этаж %d" % (current_floor + 1)))
+	name_input.placeholder_text = "Название этажа"
+	_labeled_control(form, "Название", name_input)
+	var height_input := SpinBox.new()
+	height_input.min_value = 2000.0
+	height_input.max_value = 6000.0
+	height_input.step = 50.0
+	height_input.value = float(floor_data.get("floor_height_mm", 2800.0))
+	_labeled_control(form, "Высота этажа (mm)", height_input)
+	var slab_input := SpinBox.new()
+	slab_input.min_value = 80.0
+	slab_input.max_value = 1000.0
+	slab_input.step = 10.0
+	slab_input.value = float(floor_data.get("slab_thickness_mm", 220.0))
+	_labeled_control(form, "Толщина перекрытия (mm)", slab_input)
+	dialog.confirmed.connect(func():
+		var updated: Dictionary = floors[current_floor].duplicate(true)
+		updated["name"] = name_input.text.strip_edges() if not name_input.text.strip_edges().is_empty() else "Этаж %d" % (current_floor + 1)
+		updated["floor_height_mm"] = height_input.value
+		updated["slab_thickness_mm"] = slab_input.value
+		floors[current_floor] = updated
+		status_label.text = "%s • высота %.0f mm • перекрытие %.0f mm" % [updated["name"], height_input.value, slab_input.value]
+		if is_3d:
+			_rebuild_3d()
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
 
 func _switch_floor(direction: int) -> void:
 	if floors.size() < 2:
@@ -955,7 +1000,7 @@ func _save_project() -> void:
 		for item in floor.get("furniture", []):
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
-		floor_data.append({"walls": fw, "furniture": ff})
+		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "walls": fw, "furniture": ff})
 	var data := {"version": 5, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
@@ -1003,7 +1048,7 @@ func _load_project() -> void:
 			for item in floor_item.get("furniture", []):
 				if item is Dictionary and item.has("position"):
 					ffurniture.append({"kind": int(item.get("kind", 0)), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0))})
-			floors.append({"walls": fwalls, "furniture": ffurniture})
+			floors.append({"name": str(floor_item.get("name", "Этаж %d" % (floors.size() + 1))), "floor_height_mm": float(floor_item.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor_item.get("slab_thickness_mm", 220.0)), "walls": fwalls, "furniture": ffurniture})
 		current_floor = clampi(int(data.get("current_floor", 0)), 0, floors.size() - 1)
 		walls = floors[current_floor].walls.duplicate(true)
 		furniture = floors[current_floor].furniture.duplicate(true)
