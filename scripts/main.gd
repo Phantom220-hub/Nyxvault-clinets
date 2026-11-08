@@ -27,6 +27,7 @@ var pending_opening := ""
 var floors: Array[Dictionary] = []
 var current_floor := 0
 var move_mode_3d := false
+var select_walls_3d := false
 var material_theme := 0
 var project_dialog: FileDialog
 
@@ -97,6 +98,7 @@ func _build_interface() -> void:
 	_add_button(tools, "ЭТАЖ ←", func(): _switch_floor(-1), false)
 	_add_button(tools, "ЭТАЖ →", func(): _switch_floor(1), false)
 	_add_button(tools, "MOVE 3D", _toggle_3d_move, false)
+	_add_button(tools, "ВЫБРАТЬ СТЕНУ 3D", _toggle_3d_wall_select, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
@@ -478,8 +480,11 @@ func _on_preview_input(event: InputEvent) -> void:
 			if move_mode_3d:
 				_pick_furniture(_to_viewport_position(event.position))
 		else:
-			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0 and not move_mode_3d:
-				_pick_furniture(_to_viewport_position(event.position))
+			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0:
+				if select_walls_3d:
+					_pick_wall_3d(_to_viewport_position(event.position))
+				elif not move_mode_3d:
+					_pick_furniture(_to_viewport_position(event.position))
 			preview_dragging = false
 	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and preview_dragging:
 		var delta := event.position - preview_last_pos
@@ -490,7 +495,7 @@ func _on_preview_input(event: InputEvent) -> void:
 				furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
 				_sync_plan_furniture()
 				_update_dragged_furniture_node()
-		else:
+		elif not select_walls_3d:
 			camera_yaw -= delta.x * 0.008
 			camera_pitch -= delta.y * 0.006
 			_update_camera()
@@ -500,6 +505,44 @@ func _on_preview_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		camera_distance += 1.0
 		_update_camera()
+
+func _toggle_3d_wall_select() -> void:
+	select_walls_3d = not select_walls_3d
+	if select_walls_3d:
+		move_mode_3d = false
+		status_label.text = "3D: каснитесь стены для выбора; параметры редактируются через «ПАРАМЕТРЫ СТЕНЫ»"
+	else:
+		status_label.text = "3D: выбор стен выключен"
+
+func _pick_wall_3d(screen_pos: Vector2) -> void:
+	if not is_instance_valid(view_camera) or current_floor < 0 or current_floor >= floors.size():
+		return
+	var best_index := -1
+	var best_distance := 72.0
+	var floor_data: Dictionary = floors[current_floor]
+	var floor_walls: Array = floor_data.get("walls", [])
+	var base_y := _floor_base_y(current_floor)
+	for wall_index in range(floor_walls.size()):
+		var wall: Dictionary = floor_walls[wall_index]
+		var a: Vector2 = wall.get("a", Vector2.ZERO)
+		var b: Vector2 = wall.get("b", Vector2.ZERO)
+		var mid := (a + b) * 0.5
+		var wall_height := float(wall.get("height_mm", 2800.0)) / 1000.0
+		var world_mid := Vector3((mid.x - plan_canvas.size.x * 0.5) / PPM, base_y + wall_height * 0.5, (mid.y - plan_canvas.size.y * 0.5) / PPM)
+		if view_camera.is_position_behind(world_mid):
+			continue
+		var distance := view_camera.unproject_position(world_mid).distance_to(screen_pos)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = wall_index
+	if best_index >= 0:
+		plan_canvas.selected_wall = best_index
+		plan_canvas.queue_redraw()
+		var selected := plan_canvas.get_selected_wall()
+		var selected_a: Vector2 = selected.get("a", Vector2.ZERO)
+		var selected_b: Vector2 = selected.get("b", Vector2.ZERO)
+		status_label.text = "3D выбрана стена %d • %.0f mm" % [best_index + 1, Units.pixels_to_mm(selected_a.distance_to(selected_b))]
+		_rebuild_3d()
 
 func _to_viewport_position(container_pos: Vector2) -> Vector2:
 	var viewport := preview.get_child(0) as SubViewport
@@ -622,7 +665,12 @@ func _rebuild_3d() -> void:
 		var floor_data: Dictionary = floors[floor_index]
 		var base_y := _floor_base_y(floor_index)
 		_box(root, Vector3(24, 0.12, 24), Vector3(0, base_y - 0.12, 0), floor_mat)
-		for wall in floor_data.get("walls", []):
+		var floor_walls: Array = floor_data.get("walls", [])
+		for wall_index in range(floor_walls.size()):
+			var wall: Dictionary = floor_walls[wall_index]
+			var active_wall_mat: Material = wall_mat
+			if floor_index == current_floor and wall_index == plan_canvas.selected_wall:
+				active_wall_mat = _mat(Color("#FFC878"), 0.62)
 			var a: Vector2 = wall.a
 			var b: Vector2 = wall.b
 			var mid := (a + b) * 0.5
@@ -642,30 +690,30 @@ func _rebuild_3d() -> void:
 				var opening_center := center + direction * (opening_offset_m - length * 0.5)
 				if left_length > 0.05:
 					var left_center := center - direction * (length * 0.5 - left_length * 0.5)
-					var left_wall := _box(root, Vector3(left_length, wall_height, wall_thickness), left_center, wall_mat)
+					var left_wall := _box(root, Vector3(left_length, wall_height, wall_thickness), left_center, active_wall_mat)
 					left_wall.rotation.y = -angle
 				if right_length > 0.05:
 					var right_center := center + direction * (length * 0.5 - right_length * 0.5)
-					var right_wall := _box(root, Vector3(right_length, wall_height, wall_thickness), right_center, wall_mat)
+					var right_wall := _box(root, Vector3(right_length, wall_height, wall_thickness), right_center, active_wall_mat)
 					right_wall.rotation.y = -angle
 				if opening == "door":
 					var door_opening_height := minf(float(wall.get("opening_height_mm", 2050.0)) / 1000.0, wall_height * 0.95)
 					var lintel_height := maxf(wall_height - door_opening_height, 0.02)
-					var lintel := _box(root, Vector3(gap, lintel_height, wall_thickness), Vector3(opening_center.x, base_y + door_opening_height + lintel_height * 0.5, opening_center.z), wall_mat)
+					var lintel := _box(root, Vector3(gap, lintel_height, wall_thickness), Vector3(opening_center.x, base_y + door_opening_height + lintel_height * 0.5, opening_center.z), active_wall_mat)
 					lintel.rotation.y = -angle
 				else:
 					var sill_height := minf(float(wall.get("sill_height_mm", 850.0)) / 1000.0, wall_height * 0.4)
 					var window_top := minf(sill_height + float(wall.get("opening_height_mm", 1200.0)) / 1000.0, wall_height * 0.95)
 					var pane_height := maxf(window_top - sill_height, 0.1)
 					var header_height := maxf(wall_height - window_top, 0.02)
-					var sill := _box(root, Vector3(gap, sill_height, wall_thickness), Vector3(opening_center.x, base_y + sill_height * 0.5, opening_center.z), wall_mat)
-					var header := _box(root, Vector3(gap, header_height, wall_thickness), Vector3(opening_center.x, base_y + window_top + header_height * 0.5, opening_center.z), wall_mat)
+					var sill := _box(root, Vector3(gap, sill_height, wall_thickness), Vector3(opening_center.x, base_y + sill_height * 0.5, opening_center.z), active_wall_mat)
+					var header := _box(root, Vector3(gap, header_height, wall_thickness), Vector3(opening_center.x, base_y + window_top + header_height * 0.5, opening_center.z), active_wall_mat)
 					sill.rotation.y = -angle
 					header.rotation.y = -angle
 					var pane := _box(root, Vector3(gap * 0.94, pane_height, 0.035), Vector3(opening_center.x, base_y + sill_height + pane_height * 0.5, opening_center.z), glass)
 					pane.rotation.y = -angle
 			else:
-				var segment := _box(root, Vector3(maxf(length, 0.12), wall_height, wall_thickness), center, wall_mat)
+				var segment := _box(root, Vector3(maxf(length, 0.12), wall_height, wall_thickness), center, active_wall_mat)
 				segment.rotation.y = -angle
 			var skirting := _box(root, Vector3(maxf(length, 0.12), 0.1, wall_thickness + 0.03), Vector3(center.x, base_y + 0.1, center.z), trim_mat)
 			skirting.rotation.y = -angle
