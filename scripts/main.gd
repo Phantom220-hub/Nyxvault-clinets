@@ -596,14 +596,20 @@ func _rebuild_3d() -> void:
 					var side_wall := _box(root, Vector3(side_length, wall_height, wall_thickness), side_center, wall_mat)
 					side_wall.rotation.y = -angle
 				if opening == "door":
-					var lintel := _box(root, Vector3(gap, maxf(wall_height - 2.05, 0.05), wall_thickness), Vector3(center.x, base_y + 2.05 + maxf(wall_height - 2.05, 0.05) * 0.5, center.z), wall_mat)
+					var door_opening_height := minf(2.05, wall_height * 0.85)
+					var lintel_height := maxf(wall_height - door_opening_height, 0.02)
+					var lintel := _box(root, Vector3(gap, lintel_height, wall_thickness), Vector3(center.x, base_y + door_opening_height + lintel_height * 0.5, center.z), wall_mat)
 					lintel.rotation.y = -angle
 				else:
-					var sill := _box(root, Vector3(gap, 0.85, wall_thickness), Vector3(center.x, base_y + 0.425, center.z), wall_mat)
-					var header := _box(root, Vector3(gap, maxf(wall_height - 2.1, 0.1), wall_thickness), Vector3(center.x, base_y + 2.1 + maxf(wall_height - 2.1, 0.1) * 0.5, center.z), wall_mat)
+					var sill_height := minf(0.85, wall_height * 0.25)
+					var window_top := minf(2.1, wall_height * 0.85)
+					var pane_height := maxf(window_top - sill_height, 0.1)
+					var header_height := maxf(wall_height - window_top, 0.02)
+					var sill := _box(root, Vector3(gap, sill_height, wall_thickness), Vector3(center.x, base_y + sill_height * 0.5, center.z), wall_mat)
+					var header := _box(root, Vector3(gap, header_height, wall_thickness), Vector3(center.x, base_y + window_top + header_height * 0.5, center.z), wall_mat)
 					sill.rotation.y = -angle
 					header.rotation.y = -angle
-					var pane := _box(root, Vector3(gap * 0.94, maxf(wall_height - 1.0, 0.2), 0.035), Vector3(center.x, base_y + wall_height * 0.5, center.z), glass)
+					var pane := _box(root, Vector3(gap * 0.94, pane_height, 0.035), Vector3(center.x, base_y + sill_height + pane_height * 0.5, center.z), glass)
 					pane.rotation.y = -angle
 			else:
 				var segment := _box(root, Vector3(maxf(length, 0.12), wall_height, wall_thickness), center, wall_mat)
