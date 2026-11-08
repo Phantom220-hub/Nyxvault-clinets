@@ -49,6 +49,147 @@ func _ready() -> void:
 	_setup_keyboard_shortcuts()
 	_start_autosave()
 	call_deferred("_check_autosave_recovery")
+	call_deferred("_show_startup_splash")
+
+
+func _make_startup_overlay() -> Control:
+	var overlay := Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+	var background := ColorRect.new()
+	background.color = Color("#0B1420")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(background)
+	var glow := ColorRect.new()
+	glow.color = Color("#102D39")
+	glow.anchor_left = 0.12
+	glow.anchor_top = 0.18
+	glow.anchor_right = 0.88
+	glow.anchor_bottom = 0.72
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(glow)
+	return overlay
+
+
+func _show_startup_splash() -> void:
+	var splash := _make_startup_overlay()
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	splash.add_child(center)
+	var stack := VBoxContainer.new()
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.add_theme_constant_override("separation", 12)
+	center.add_child(stack)
+	var mark := Label.new()
+	mark.text = "⌂"
+	mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mark.add_theme_font_size_override("font_size", 104)
+	mark.add_theme_color_override("font_color", ACCENT)
+	stack.add_child(mark)
+	var title := Label.new()
+	title.text = "DREAMHOUSE 3D"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", TEXT)
+	stack.add_child(title)
+	var subtitle := Label.new()
+	subtitle.text = "АРХИТЕКТУРА • 2D • 3D"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 12)
+	subtitle.add_theme_color_override("font_color", MUTED)
+	stack.add_child(subtitle)
+	await get_tree().create_timer(1.8).timeout
+	if is_instance_valid(splash):
+		splash.queue_free()
+	_show_home_menu()
+
+
+func _show_home_menu() -> void:
+	var menu := _make_startup_overlay()
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(0, 610)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override("panel", _style(Color("#142330"), 24))
+	center.add_child(card)
+	var stack := VBoxContainer.new()
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.add_theme_constant_override("separation", 13)
+	stack.add_theme_constant_override("margin_left", 22)
+	stack.add_theme_constant_override("margin_right", 22)
+	card.add_child(stack)
+	var mark := Label.new()
+	mark.text = "⌂"
+	mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mark.add_theme_font_size_override("font_size", 66)
+	mark.add_theme_color_override("font_color", ACCENT)
+	stack.add_child(mark)
+	var title := Label.new()
+	title.text = "DREAMHOUSE 3D"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 27)
+	title.add_theme_color_override("font_color", TEXT)
+	stack.add_child(title)
+	var tagline := Label.new()
+	tagline.text = "Создайте свой дом в 2D и 3D"
+	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tagline.add_theme_font_size_override("font_size", 15)
+	tagline.add_theme_color_override("font_color", MUTED)
+	stack.add_child(tagline)
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = 20
+	stack.add_child(spacer)
+	_add_home_menu_button(stack, "＋  НОВЫЙ ПРОЕКТ", func(): _close_home_and_start(menu), true)
+	_add_home_menu_button(stack, "МОИ ПРОЕКТЫ", func(): _close_home_and_projects(menu), false)
+	_add_home_menu_button(stack, "ОБУЧЕНИЕ", func(): _close_home_and_tutorial(menu), false)
+	_add_home_menu_button(stack, "НАСТРОЙКИ", func(): _show_home_settings(), false)
+	var footer := Label.new()
+	footer.text = "OFFLINE ARCHITECTURE STUDIO  •  v0.1.0"
+	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	footer.add_theme_font_size_override("font_size", 10)
+	footer.add_theme_color_override("font_color", MUTED)
+	stack.add_child(footer)
+
+
+func _add_home_menu_button(parent: VBoxContainer, caption: String, callback: Callable, accent: bool) -> void:
+	var button := Button.new()
+	button.text = caption
+	button.custom_minimum_size = Vector2(0, 58)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_color_override("font_color", Color("#10242A") if accent else TEXT)
+	button.add_theme_stylebox_override("normal", _style(ACCENT if accent else Color("#263847"), 14))
+	button.add_theme_stylebox_override("pressed", _style(Color("#75E8D9") if accent else Color("#344C5D"), 14))
+	button.pressed.connect(callback)
+	parent.add_child(button)
+
+
+func _close_home_and_start(menu: Control) -> void:
+	menu.queue_free()
+	status_label.text = "Новый проект • этаж 1 • готов к работе"
+
+
+func _close_home_and_projects(menu: Control) -> void:
+	menu.queue_free()
+	_open_project_manager()
+
+
+func _close_home_and_tutorial(menu: Control) -> void:
+	menu.queue_free()
+	_show_tutorial()
+
+
+func _show_home_settings() -> void:
+	var dialog := AcceptDialog.new()
+	dialog.title = "Настройки DREAMHOUSE 3D"
+	dialog.dialog_text = "Приложение работает офлайн. Настройки графики и интерфейса будут добавлены отдельно."
+	add_child(dialog)
+	dialog.popup_centered()
+
 
 func _build_interface() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
