@@ -111,19 +111,18 @@ static func write_json_atomic(path: String, data: Dictionary) -> Dictionary:
 	var had_original := FileAccess.file_exists(absolute_path)
 	if had_original:
 		if FileAccess.file_exists(backup_path):
-			DirAccess.remove_absolute(backup_path)
-		var backup_error := DirAccess.copy_absolute(absolute_path, backup_path)
+			var remove_backup_error := DirAccess.remove_absolute(backup_path)
+			if remove_backup_error != OK:
+				DirAccess.remove_absolute(temporary_path)
+				return {"ok": false, "error": "old_backup_remove_failed", "code": remove_backup_error}
+		var backup_error := DirAccess.rename_absolute(absolute_path, backup_path)
 		if backup_error != OK:
 			DirAccess.remove_absolute(temporary_path)
-			return {"ok": false, "error": "backup_failed", "code": backup_error}
-		var move_old_error := DirAccess.remove_absolute(absolute_path)
-		if move_old_error != OK:
-			DirAccess.remove_absolute(temporary_path)
-			return {"ok": false, "error": "replace_prepare_failed", "code": move_old_error}
+			return {"ok": false, "error": "backup_rename_failed", "code": backup_error}
 	var replace_error := DirAccess.rename_absolute(temporary_path, absolute_path)
 	if replace_error != OK:
 		if had_original and FileAccess.file_exists(backup_path):
-			DirAccess.copy_absolute(backup_path, absolute_path)
+			DirAccess.rename_absolute(backup_path, absolute_path)
 		DirAccess.remove_absolute(temporary_path)
 		return {"ok": false, "error": "atomic_replace_failed", "code": replace_error}
 	return {"ok": true, "path": path, "backup_created": had_original}
