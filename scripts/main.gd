@@ -23,8 +23,11 @@ var camera_distance := 17.0
 var preview_dragging := false
 var preview_last_pos := Vector2.ZERO
 var pending_opening := ""
+var floors: Array[Dictionary] = []
+var current_floor := 0
 
 func _ready() -> void:
+	floors = [{"walls": [], "furniture": []}]
 	_build_interface()
 	_rebuild_3d()
 
@@ -80,6 +83,10 @@ func _build_interface() -> void:
 	_add_button(tools, "ДВЕРЬ", func(): _set_opening("door"), false)
 	_add_button(tools, "ОКНО", func(): _set_opening("window"), false)
 	_add_button(tools, "БЕЗ ПРОЁМА", func(): _set_opening(""), false)
+	_add_button(tools, "ПЛОЩАДЬ", _calculate_room_areas, true)
+	_add_button(tools, "+ ЭТАЖ", _add_floor, false)
+	_add_button(tools, "ЭТАЖ ←", func(): _switch_floor(-1), false)
+	_add_button(tools, "ЭТАЖ →", func(): _switch_floor(1), false)
 	object_menu = PopupMenu.new()
 	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4]]:
 		object_menu.add_item(pair[0], pair[1])
@@ -467,6 +474,85 @@ func _add_furniture(root: Node3D, item: Dictionary) -> void:
 			_box(group, Vector3(1.25, 2.1, 0.65), c + Vector3(0, 1.05, 0), wood)
 			_box(group, Vector3(0.025, 1.9, 0.02), c + Vector3(0, 1.05, 0.34), metal)
 
+
+func _snapshot_floor() -> void:
+	if floors.size() <= current_floor:
+		return
+	floors[current_floor] = {"walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}
+
+func _add_floor() -> void:
+	_snapshot_floor()
+	floors.append({"walls": [], "furniture": []})
+	current_floor = floors.size() - 1
+	walls.clear()
+	furniture.clear()
+	selected_furniture = -1
+	plan_canvas.walls.clear()
+	plan_canvas.queue_redraw()
+	if is_3d:
+		_rebuild_3d()
+	status_label.text = "Создан этаж %d из %d" % [current_floor + 1, floors.size()]
+
+func _switch_floor(direction: int) -> void:
+	if floors.size() < 2:
+		status_label.text = "Добавьте ещё один этаж"
+		return
+	_snapshot_floor()
+	current_floor = posmod(current_floor + direction, floors.size())
+	walls = floors[current_floor].get("walls", []).duplicate(true)
+	furniture = floors[current_floor].get("furniture", []).duplicate(true)
+	selected_furniture = -1
+	plan_canvas.walls = walls.duplicate(true)
+	plan_canvas.queue_redraw()
+	if is_3d:
+		_rebuild_3d()
+	status_label.text = "Этаж %d из %d" % [current_floor + 1, floors.size()]
+
+func _calculate_room_areas() -> void:
+	var graph: Dictionary = {}
+	for wall in walls:
+		var a: Vector2 = wall.a
+		var b: Vector2 = wall.b
+		if not graph.has(a): graph[a] = []
+		if not graph.has(b): graph[b] = []
+		if not graph[a].has(b): graph[a].append(b)
+		if not graph[b].has(a): graph[b].append(a)
+	var cycles: Array = []
+	var signatures: Dictionary = {}
+	for start in graph.keys():
+		var path: Array = [start]
+		_find_cycles(start, start, graph, path, signatures, cycles)
+	if cycles.is_empty():
+		status_label.text = "Замкнутых комнат не найдено • соедините стены в контур"
+		return
+	var areas: Array[float] = []
+	for polygon in cycles:
+		var twice_area := 0.0
+		for i in range(polygon.size()):
+			var a: Vector2 = polygon[i]
+			var b: Vector2 = polygon[(i + 1) % polygon.size()]
+			twice_area += a.x * b.y - b.x * a.y
+		areas.append(absf(twice_area) / 2.0 / (PPM * PPM))
+	areas.sort()
+	var total := 0.0
+	for area in areas: total += area
+	status_label.text = "Этаж %d • контуров: %d • площадь: %.2f м²" % [current_floor + 1, areas.size(), total]
+
+func _find_cycles(current: Vector2, start: Vector2, graph: Dictionary, path: Array, signatures: Dictionary, cycles: Array) -> void:
+	for neighbor in graph.get(current, []):
+		if neighbor == start and path.size() >= 3:
+			var keys: Array[String] = []
+			for point in path: keys.append("%.1f,%.1f" % [point.x, point.y])
+			keys.sort()
+			var signature := "|".join(keys)
+			if not signatures.has(signature):
+				signatures[signature] = true
+				cycles.append(path.duplicate())
+		elif not path.has(neighbor) and path.size() < 80:
+			path.append(neighbor)
+			_find_cycles(neighbor, start, graph, path, signatures, cycles)
+			path.pop_back()
+
 func _save_project() -> void:
 	var wall_data: Array[Dictionary] = []
 	for w in walls:
@@ -475,7 +561,17 @@ func _save_project() -> void:
 	for item in furniture:
 		var p: Vector2 = item.get("position", Vector2.ZERO)
 		furniture_data.append({"kind": item.get("kind", 0), "position": [p.x, p.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
-	var data := {"version": 2, "walls": wall_data, "furniture": furniture_data}
+	_snapshot_floor()
+	var floor_data: Array = []
+	for floor in floors:
+		var fw: Array = []
+		for w in floor.get("walls", []): fw.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", "")})
+		var ff: Array = []
+		for item in floor.get("furniture", []):
+			var fp: Vector2 = item.get("position", Vector2.ZERO)
+			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
+		floor_data.append({"walls": fw, "furniture": ff})
+	var data := {"version": 3, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
 		status_label.text = "Ошибка сохранения"
@@ -505,8 +601,26 @@ func _load_project() -> void:
 	for item in data.get("furniture", []):
 		if item is Dictionary and item.has("kind") and item.has("position") and item.position.size() == 2:
 			furniture.append({"kind": int(item.kind), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0))})
+	if data.has("floors") and data.floors is Array and not data.floors.is_empty():
+		floors.clear()
+		for floor_item in data.floors:
+			var fwalls: Array[Dictionary] = []
+			for w in floor_item.get("walls", []):
+				if w is Dictionary and w.has("a") and w.has("b"):
+					fwalls.append({"a": Vector2(float(w.a[0]), float(w.a[1])), "b": Vector2(float(w.b[0]), float(w.b[1])), "opening": str(w.get("opening", ""))})
+			var ffurniture: Array[Dictionary] = []
+			for item in floor_item.get("furniture", []):
+				if item is Dictionary and item.has("position"):
+					ffurniture.append({"kind": int(item.get("kind", 0)), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0))})
+			floors.append({"walls": fwalls, "furniture": ffurniture})
+		current_floor = clampi(int(data.get("current_floor", 0)), 0, floors.size() - 1)
+		walls = floors[current_floor].walls.duplicate(true)
+		furniture = floors[current_floor].furniture.duplicate(true)
+	else:
+		floors = [{"walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
+		current_floor = 0
 	plan_canvas.walls = walls.duplicate(true)
 	plan_canvas.queue_redraw()
-	status_label.text = "Загружено • %d стен • %d объектов" % [walls.size(), furniture.size()]
+	status_label.text = "Загружено • этаж %d/%d • %d стен • %d объектов" % [current_floor + 1, floors.size(), walls.size(), furniture.size()]
 	if is_3d:
 		_rebuild_3d()
