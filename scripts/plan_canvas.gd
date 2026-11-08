@@ -188,18 +188,10 @@ func _pointer_drag(point: Vector2) -> void:
 			wall.a = new_point
 		else:
 			wall.b = new_point
-		walls[selected_wall] = wall
-		for i in range(walls.size()):
-			if i == selected_wall:
-				continue
-			var connected: Dictionary = walls[i].duplicate(true)
-			var connected_a: Vector2 = connected.get("a", Vector2.ZERO)
-			var connected_b: Vector2 = connected.get("b", Vector2.ZERO)
-			if connected_a.distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
-				connected.a = new_point
-			if connected_b.distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
-				connected.b = new_point
-			walls[i] = connected
+		var moved_walls := Geometry.move_connected_endpoint(drag_start_walls, selected_wall, drag_endpoint, new_point)
+		if moved_walls.is_empty():
+			return
+		walls = moved_walls
 	else:
 		var original_a: Vector2 = drag_start_wall.get("a", wall.a)
 		var desired_a := original_a + (point - drag_start_pointer)
@@ -211,29 +203,7 @@ func _pointer_drag(point: Vector2) -> void:
 	queue_redraw()
 
 func _translated_connected_component(root_index: int, offset: Vector2) -> Array[Dictionary]:
-	var result: Array[Dictionary] = drag_start_walls.duplicate(true)
-	if root_index < 0 or root_index >= result.size():
-		return result
-	var visited: Dictionary = {root_index: true}
-	var queue: Array[int] = [root_index]
-	while not queue.is_empty():
-		var current: int = queue.pop_front()
-		var current_wall: Dictionary = drag_start_walls[current]
-		for candidate in range(drag_start_walls.size()):
-			if visited.has(candidate):
-				continue
-			var other: Dictionary = drag_start_walls[candidate]
-			var touches := false
-			for endpoint_a in [current_wall.a, current_wall.b]:
-				for endpoint_b in [other.a, other.b]:
-					if endpoint_a.distance_to(endpoint_b) <= Geometry.JOIN_TOLERANCE_PX:
-						touches = true
-			if touches:
-				visited[candidate] = true
-				queue.append(candidate)
-	for index in visited.keys():
-		result[int(index)] = Geometry.translated(drag_start_walls[int(index)], offset)
-	return result
+	return Geometry.translated_connected_component(drag_start_walls, root_index, offset)
 
 func _pointer_up(point: Vector2) -> void:
 	if drawing:
