@@ -133,7 +133,7 @@ Legend:
 - [ ] Door/window schedule and room schedule.
 - [ ] Electrical and plumbing drawings.
 - [ ] Material specification.
-- [ ] PDF and raster export.
+- [~] Basic fitted A4 landscape PDF export for the current floor's wall centerlines and PNG viewport screenshot; sheet templates, symbols, dimension annotations and raster crop remain.
 - [~] Basic DXF R12 line export for current-floor wall centerlines; DXF import, thickness/blocks/dimensions and compatibility tests remain.
 - [ ] Supported BIM exchange format and explicit interoperability tests.
 - [ ] Print layout, sheet size, scale and line weights.
@@ -144,7 +144,7 @@ Legend:
 - [ ] Tile, wallpaper and flooring quantities with waste factors.
 - [ ] Concrete/volume estimates only where geometry and assumptions support them.
 - [ ] Door/window counts and schedule.
-- [ ] User-entered unit prices and currency.
+- [~] User-entered unit prices for wall finish, floor finish, doors and windows in TJS; currency selection and full cost catalog remain.
 - [ ] Cost estimate with visible formulas, waste factors and exclusions.
 - [ ] PDF and spreadsheet estimate export.
 
@@ -159,7 +159,7 @@ Legend:
 - [ ] Backup/restore and project comparison.
 
 ## 15. Presentation and workflow
-- [ ] Editable house templates.
+- [~] Startup home menu, tutorial and furniture/site/roof primitives; reusable complete house templates remain.
 - [ ] First-person walkthrough with collision and door interaction.
 - [ ] Interior/exterior mode and lighting controls.
 - [ ] Compare design variants.
