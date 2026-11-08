@@ -229,7 +229,9 @@ func _on_plan_wall_selected(index: int) -> void:
 		status_label.text = "Стена не выбрана"
 		return
 	var wall := plan_canvas.get_selected_wall()
-	var length_mm := Units.pixels_to_mm((wall.a as Vector2).distance_to(wall.b as Vector2))
+	var wall_a: Vector2 = wall.get("a", Vector2.ZERO)
+	var wall_b: Vector2 = wall.get("b", Vector2.ZERO)
+	var length_mm := Units.pixels_to_mm(wall_a.distance_to(wall_b))
 	status_label.text = "Стена %d • длина %.0f mm • толщина %.0f mm • высота %.0f mm" % [index + 1, length_mm, float(wall.get("thickness_mm", 150.0)), float(wall.get("height_mm", 2800.0))]
 
 func _on_plan_walls_changed() -> void:
@@ -872,13 +874,13 @@ func _save_project() -> void:
 	for floor in floors:
 		var fw: Array = []
 		for w in floor.get("walls", []):
-			fw.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false)})
+			fw.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false), "opening_width_mm": w.get("opening_width_mm", 900.0), "opening_offset_mm": w.get("opening_offset_mm", 0.0), "opening_height_mm": w.get("opening_height_mm", 2050.0), "sill_height_mm": w.get("sill_height_mm", 850.0)})
 		var ff: Array = []
 		for item in floor.get("furniture", []):
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
 		floor_data.append({"walls": fw, "furniture": ff})
-	var data := {"version": 3, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data}
+	var data := {"version": 4, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
 		status_label.text = "Ошибка сохранения"
