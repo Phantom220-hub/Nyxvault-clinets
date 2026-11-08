@@ -115,7 +115,7 @@ func _constrained_point(raw_point: Vector2) -> Vector2:
 	var point := _snap(raw_point)
 	if angle_snap_enabled:
 		point = Geometry.constrain_angle(start_point, point, angle_snap_degrees)
-	return _snap(point)
+	return point
 
 func set_tool_mode(mode: String) -> void:
 	tool_mode = "select" if mode == "select" else "draw"
@@ -193,9 +193,11 @@ func _pointer_drag(point: Vector2) -> void:
 			if i == selected_wall:
 				continue
 			var connected: Dictionary = walls[i].duplicate(true)
-			if Vector2(connected.get("a", Vector2.ZERO)).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
+			var connected_a: Vector2 = connected.get("a", Vector2.ZERO)
+			var connected_b: Vector2 = connected.get("b", Vector2.ZERO)
+			if connected_a.distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
 				connected.a = new_point
-			if Vector2(connected.get("b", Vector2.ZERO)).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
+			if connected_b.distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
 				connected.b = new_point
 			walls[i] = connected
 	else:
@@ -235,7 +237,7 @@ func _translated_connected_component(root_index: int, offset: Vector2) -> Array[
 
 func _pointer_up(point: Vector2) -> void:
 	if drawing:
-		current_point = _snap(point)
+		current_point = _constrained_point(point)
 		drawing = false
 		if start_point.distance_to(current_point) >= grid_size:
 			_record_history()
