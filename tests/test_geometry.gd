@@ -24,7 +24,23 @@ func _initialize() -> void:
 
 	var angled := Geometry.constrain_angle(Vector2.ZERO, Vector2(100.0, 50.0), 15.0)
 	assert(is_equal_approx(rad_to_deg(angled.angle()), 30.0))
-	assert(is_equal_approx(angled.length(), Vector2(100.0, 40.0).length()))
+	assert(is_equal_approx(angled.length(), Vector2(100.0, 50.0).length()))
+
+	var connected_walls: Array = [
+		{"a": Vector2(0, 0), "b": Vector2(100, 0)},
+		{"a": Vector2(100, 0), "b": Vector2(100, 100)},
+		{"a": Vector2(300, 0), "b": Vector2(400, 0)}
+	]
+	var moved_component := Geometry.translated_connected_component(connected_walls, 0, Vector2(10, 20))
+	assert(moved_component[0].a == Vector2(10, 20))
+	assert(moved_component[1].a == Vector2(110, 20))
+	assert(moved_component[2].a == Vector2(300, 0))
+	var moved_endpoint := Geometry.move_connected_endpoint(connected_walls, 0, 1, Vector2(120, 0))
+	assert(moved_endpoint[0].b == Vector2(120, 0))
+	assert(moved_endpoint[1].a == Vector2(120, 0))
+	var rectangle := PackedVector2Array([Vector2(0, 0), Vector2(200, 0), Vector2(200, 100), Vector2(0, 100)])
+	assert(is_equal_approx(Geometry.polygon_area(rectangle), 20000.0))
+	assert(is_equal_approx(Geometry.polygon_perimeter(rectangle), 600.0))
 
 	var invalid := {"a": Vector2.ZERO, "b": Vector2(1.0, 1.0)}
 	assert(not Geometry.valid_wall(invalid))
