@@ -122,6 +122,7 @@ func _build_interface() -> void:
 	_add_button(tools, "ОКНО", func(): _set_opening("window"), false)
 	_add_button(tools, "БЕЗ ПРОЁМА", func(): _set_opening(""), false)
 	_add_button(tools, "ПЛОЩАДЬ", _calculate_room_areas, true)
+	_add_button(tools, "СВОДКА ЗДАНИЯ", _show_building_measurements, true)
 	_add_button(tools, "+ ЭТАЖ", _add_floor, false)
 	_add_button(tools, "КОПИЯ ЭТАЖА", _duplicate_current_floor, false)
 	_add_button(tools, "ЭТАЖ ↑", func(): _move_current_floor(-1), false)
@@ -1484,6 +1485,64 @@ func _open_project_manager() -> void:
 	)
 	refresh.call()
 	window.popup_centered()
+
+func _show_building_measurements() -> void:
+	var room_count := 0
+	var total_room_area := 0.0
+	var total_room_perimeter := 0.0
+	var total_room_volume := 0.0
+	var total_net_wall_area := 0.0
+	var total_wall_length := 0.0
+	var door_count := 0
+	var window_count := 0
+	var report_lines: Array[String] = []
+	for floor_index in range(floors.size()):
+		var floor_data: Dictionary = floors[floor_index]
+		var floor_walls: Array = floor_data.get("walls", [])
+		var floor_name := str(floor_data.get("name", "Этаж %d" % (floor_index + 1)))
+		var floor_height_mm := float(floor_data.get("floor_height_mm", 2800.0))
+		var faces := Geometry.find_bounded_faces(floor_walls)
+		var rooms := Units.room_metrics(faces, floor_height_mm)
+		var floor_area := 0.0
+		var floor_perimeter := 0.0
+		var floor_volume := 0.0
+		for room_index in range(rooms.size()):
+			var room: Dictionary = rooms[room_index]
+			var room_area := float(room.get("area_m2", 0.0))
+			var room_perimeter := float(room.get("perimeter_m", 0.0))
+			var room_volume := float(room.get("volume_m3", 0.0))
+			floor_area += room_area
+			floor_perimeter += room_perimeter
+			floor_volume += room_volume
+			report_lines.append("  Помещение %d: %.2f m² • периметр %.2f m • объём %.2f m³" % [room_index + 1, room_area, room_perimeter, room_volume])
+		room_count += rooms.size()
+		total_room_area += floor_area
+		total_room_perimeter += floor_perimeter
+		total_room_volume += floor_volume
+		var floor_wall_area := Units.wall_net_area_m2(floor_walls)
+		total_net_wall_area += floor_wall_area
+		for wall in floor_walls:
+			if not (wall is Dictionary):
+				continue
+			var wall_a: Variant = wall.get("a")
+			var wall_b: Variant = wall.get("b")
+			if wall_a is Vector2 and wall_b is Vector2:
+				var a: Vector2 = wall_a
+				var b: Vector2 = wall_b
+				total_wall_length += Units.pixels_to_metres(a.distance_to(b))
+			var opening := str(wall.get("opening", ""))
+			if opening == "door":
+				door_count += 1
+			elif opening == "window":
+				window_count += 1
+		report_lines.append("%s: комнат %d • площадь %.2f m² • стены %.2f m²" % [floor_name, rooms.size(), floor_area, floor_wall_area])
+	var summary := "ПОМЕЩЕНИЯ: %d\\nПлощадь помещений: %.2f m²\\nПолезная площадь (оценка по замкнутым комнатам): %.2f m²\\nПериметры помещений суммарно: %.2f m\\nОбъём помещений: %.2f m³\\nПлощадь стен за вычетом проёмов: %.2f m²\\nДлина стен: %.2f m\\nДвери: %d • окна: %d\\n\\nПОЭТАЖНАЯ ВЕДОМОСТЬ\\n%s" % [room_count, total_room_area, total_room_area, total_room_perimeter, total_room_volume, total_net_wall_area, total_wall_length, door_count, window_count, "\\n".join(report_lines)]
+	var dialog := AcceptDialog.new()
+	dialog.title = "Ведомость помещений и площадей"
+	dialog.dialog_text = summary
+	dialog.min_size = Vector2i(620, 560)
+	add_child(dialog)
+	dialog.popup_centered()
 
 func _export_project() -> void:
 	_save_project()
