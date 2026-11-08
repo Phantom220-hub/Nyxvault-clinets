@@ -26,7 +26,7 @@ var tool_mode := "draw" # draw | select
 var drawing := false
 var dragging_wall := false
 var drag_endpoint := -1 # 0=start, 1=end, -1=whole wall
-var drag_last := Vector2.ZERO
+var drag_history_recorded := false
 var drag_start_pointer := Vector2.ZERO
 var drag_start_wall: Dictionary = {}
 var start_point := Vector2.ZERO
@@ -139,7 +139,6 @@ func _pointer_down(point: Vector2) -> void:
 	else:
 		_select_wall_at(point)
 		if selected_wall >= 0:
-			_record_history()
 			var wall: Dictionary = walls[selected_wall]
 			var a: Vector2 = wall.a
 			var b: Vector2 = wall.b
@@ -150,7 +149,7 @@ func _pointer_down(point: Vector2) -> void:
 			else:
 				drag_endpoint = -1
 			dragging_wall = true
-			drag_last = point
+			drag_history_recorded = false
 			drag_start_pointer = point
 			drag_start_wall = wall.duplicate(true)
 	accept_event()
@@ -159,9 +158,10 @@ func _pointer_down(point: Vector2) -> void:
 func _pointer_drag(point: Vector2) -> void:
 	if selected_wall < 0 or selected_wall >= walls.size():
 		return
-	var delta := point - drag_last
-	drag_last = point
-	var wall: Dictionary = walls[selected_wall]
+	if not drag_history_recorded:
+		_record_history()
+		drag_history_recorded = true
+	var wall: Dictionary = walls[selected_wall].duplicate(true)
 	if drag_endpoint == 0:
 		wall.a = _snap(point)
 	elif drag_endpoint == 1:
@@ -194,6 +194,7 @@ func _pointer_up(point: Vector2) -> void:
 		dragging_wall = false
 		drag_endpoint = -1
 		drag_start_wall.clear()
+		drag_history_recorded = false
 		walls_changed.emit()
 	accept_event()
 	queue_redraw()
