@@ -85,6 +85,7 @@ func _build_interface() -> void:
 	_add_button(tools, "ЗЕРКАЛО СТЕНЫ", _mirror_selected_wall, false)
 	_add_button(tools, "МАССИВ СТЕНЫ", _array_selected_wall_dialog, false)
 	_add_button(tools, "УЗЛЫ: РЕШИТЬ", _resolve_wall_intersections, false)
+	_add_button(tools, "СЛОИ ЧЕРТЕЖА", _show_layers_dialog, false)
 	_add_button(tools, "ВЫБРАТЬ СТЕНУ", _wall_select_mode, false)
 	_add_button(tools, "ПАРАМЕТРЫ СТЕНЫ", _edit_selected_wall, false)
 	_add_button(tools, "УДАЛИТЬ СТЕНУ", _delete_selected_wall, false)
@@ -224,7 +225,7 @@ func _on_object_selected(id: int) -> void:
 	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф"]
 	var index := furniture.size()
 	var placement := Vector2(float((index % 3) - 1) * 2.4, float(int(index / 3)) * 2.4)
-	furniture.append({"kind": id, "position": placement, "rotation": 0.0, "scale": 1.0})
+	furniture.append({"kind": id, "position": placement, "rotation": 0.0, "scale": 1.0, "layer": "furniture"})
 	selected_furniture = furniture.size() - 1
 	_sync_plan_furniture()
 	status_label.text = "Добавлен объект: %s • Всего: %d" % [names[id], furniture.size()]
@@ -362,6 +363,37 @@ func _resolve_wall_intersections() -> void:
 		status_label.text = "Топология обновлена • сегментов стен: %d" % int(result.get("count", 0))
 	else:
 		status_label.text = "Новых пересечений для разделения не найдено"
+
+
+func _show_layers_dialog() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Видимость слоёв чертежа"
+	var form := VBoxContainer.new()
+	form.add_theme_constant_override("separation", 8)
+	dialog.add_child(form)
+	var checks: Dictionary = {}
+	var entries := [
+		["walls", "Архитектура — стены"],
+		["furniture", "Мебель и оборудование"],
+		["rooms", "Помещения и подписи"],
+		["dimensions", "Размерные линии"]
+	]
+	for entry in entries:
+		var layer_name: String = entry[0]
+		var check := CheckButton.new()
+		check.text = str(entry[1])
+		check.button_pressed = bool(plan_canvas.layer_visibility.get(layer_name, true))
+		form.add_child(check)
+		checks[layer_name] = check
+	dialog.confirmed.connect(func():
+		for layer_name in checks.keys():
+			plan_canvas.set_layer_visibility(str(layer_name), (checks[layer_name] as CheckButton).button_pressed)
+		if is_3d:
+			_rebuild_3d()
+		status_label.text = "Видимость слоёв чертежа обновлена"
+	)
+	add_child(dialog)
+	dialog.popup_centered()
 
 func _toggle_dimensions() -> void:
 	dimensions_enabled = not dimensions_enabled
@@ -900,8 +932,9 @@ func _rebuild_3d() -> void:
 			var crown := _box(root, Vector3(maxf(length, 0.12), 0.07, wall_thickness + 0.03), Vector3(center.x, base_y + wall_height - 0.035, center.z), trim_mat)
 			crown.rotation.y = -angle
 		var floor_furniture: Array = floor_data.get("furniture", [])
-		for furniture_index in range(floor_furniture.size()):
-			_add_furniture(root, floor_furniture[furniture_index], base_y, floor_index, furniture_index)
+		if bool(plan_canvas.layer_visibility.get("furniture", true)):
+			for furniture_index in range(floor_furniture.size()):
+				_add_furniture(root, floor_furniture[furniture_index], base_y, floor_index, furniture_index)
 	_update_camera()
 	if floors.size() > 1:
 		status_label.text = "3D • показаны все этажи: %d" % floors.size()
@@ -1108,23 +1141,23 @@ func _read_import_file(path: String) -> void:
 func _save_project() -> void:
 	var wall_data: Array[Dictionary] = []
 	for w in walls:
-		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false), "opening_width_mm": w.get("opening_width_mm", 900.0), "opening_offset_mm": w.get("opening_offset_mm", 0.0), "opening_height_mm": w.get("opening_height_mm", 2050.0), "sill_height_mm": w.get("sill_height_mm", 850.0)})
+		wall_data.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false), "opening_width_mm": w.get("opening_width_mm", 900.0), "opening_offset_mm": w.get("opening_offset_mm", 0.0), "opening_height_mm": w.get("opening_height_mm", 2050.0), "sill_height_mm": w.get("sill_height_mm", 850.0), "layer": w.get("layer", "walls")})
 	var furniture_data: Array[Dictionary] = []
 	for item in furniture:
 		var p: Vector2 = item.get("position", Vector2.ZERO)
-		furniture_data.append({"kind": item.get("kind", 0), "position": [p.x, p.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
+		furniture_data.append({"kind": item.get("kind", 0), "position": [p.x, p.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
 	_snapshot_floor()
 	var floor_data: Array = []
 	for floor in floors:
 		var fw: Array = []
 		for w in floor.get("walls", []):
-			fw.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false), "opening_width_mm": w.get("opening_width_mm", 900.0), "opening_offset_mm": w.get("opening_offset_mm", 0.0), "opening_height_mm": w.get("opening_height_mm", 2050.0), "sill_height_mm": w.get("sill_height_mm", 850.0)})
+			fw.append({"a": [w.a.x, w.a.y], "b": [w.b.x, w.b.y], "opening": w.get("opening", ""), "thickness_mm": w.get("thickness_mm", 150.0), "height_mm": w.get("height_mm", 2800.0), "load_bearing": w.get("load_bearing", false), "opening_width_mm": w.get("opening_width_mm", 900.0), "opening_offset_mm": w.get("opening_offset_mm", 0.0), "opening_height_mm": w.get("opening_height_mm", 2050.0), "sill_height_mm": w.get("sill_height_mm", 850.0), "layer": w.get("layer", "walls")})
 		var ff: Array = []
 		for item in floor.get("furniture", []):
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
 		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "walls": fw, "furniture": ff})
-	var data := {"version": 5, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
+	var data := {"version": 6, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
 		status_label.text = "Ошибка сохранения"
@@ -1146,6 +1179,10 @@ func _load_project() -> void:
 	if not data is Dictionary or not data.has("walls"):
 		status_label.text = "Файл проекта повреждён"
 		return
+	var saved_layers: Variant = data.get("layers", {})
+	if saved_layers is Dictionary:
+		for layer_name in plan_canvas.layer_visibility.keys():
+			plan_canvas.layer_visibility[layer_name] = bool(saved_layers.get(layer_name, plan_canvas.layer_visibility[layer_name]))
 	var camera_data: Variant = data.get("camera", {})
 	if camera_data is Dictionary:
 		camera_yaw = float(camera_data.get("yaw", camera_yaw))
@@ -1155,22 +1192,22 @@ func _load_project() -> void:
 	walls.clear()
 	for item in data.get("walls", []):
 		if item is Dictionary and item.has("a") and item.has("b") and item.a.size() == 2 and item.b.size() == 2:
-			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1])), "opening": str(item.get("opening", "")), "thickness_mm": float(item.get("thickness_mm", 150.0)), "height_mm": float(item.get("height_mm", 2800.0)), "load_bearing": bool(item.get("load_bearing", false)), "opening_width_mm": float(item.get("opening_width_mm", 900.0)), "opening_offset_mm": float(item.get("opening_offset_mm", 0.0)), "opening_height_mm": float(item.get("opening_height_mm", 2050.0)), "sill_height_mm": float(item.get("sill_height_mm", 850.0))})
+			walls.append({"a": Vector2(float(item.a[0]), float(item.a[1])), "b": Vector2(float(item.b[0]), float(item.b[1])), "opening": str(item.get("opening", "")), "thickness_mm": float(item.get("thickness_mm", 150.0)), "height_mm": float(item.get("height_mm", 2800.0)), "load_bearing": bool(item.get("load_bearing", false)), "opening_width_mm": float(item.get("opening_width_mm", 900.0)), "opening_offset_mm": float(item.get("opening_offset_mm", 0.0)), "opening_height_mm": float(item.get("opening_height_mm", 2050.0)), "sill_height_mm": float(item.get("sill_height_mm", 850.0)), "layer": str(item.get("layer", "walls"))})
 	furniture.clear()
 	for item in data.get("furniture", []):
 		if item is Dictionary and item.has("kind") and item.has("position") and item.position.size() == 2:
-			furniture.append({"kind": int(item.kind), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0))})
+			furniture.append({"kind": int(item.kind), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0)), "layer": str(item.get("layer", "furniture"))})
 	if data.has("floors") and data.floors is Array and not data.floors.is_empty():
 		floors.clear()
 		for floor_item in data.floors:
 			var fwalls: Array[Dictionary] = []
 			for w in floor_item.get("walls", []):
 				if w is Dictionary and w.has("a") and w.has("b"):
-					fwalls.append({"a": Vector2(float(w.a[0]), float(w.a[1])), "b": Vector2(float(w.b[0]), float(w.b[1])), "opening": str(w.get("opening", "")), "thickness_mm": float(w.get("thickness_mm", 150.0)), "height_mm": float(w.get("height_mm", 2800.0)), "load_bearing": bool(w.get("load_bearing", false)), "opening_width_mm": float(w.get("opening_width_mm", 900.0)), "opening_offset_mm": float(w.get("opening_offset_mm", 0.0)), "opening_height_mm": float(w.get("opening_height_mm", 2050.0)), "sill_height_mm": float(w.get("sill_height_mm", 850.0))})
+					fwalls.append({"a": Vector2(float(w.a[0]), float(w.a[1])), "b": Vector2(float(w.b[0]), float(w.b[1])), "opening": str(w.get("opening", "")), "thickness_mm": float(w.get("thickness_mm", 150.0)), "height_mm": float(w.get("height_mm", 2800.0)), "load_bearing": bool(w.get("load_bearing", false)), "opening_width_mm": float(w.get("opening_width_mm", 900.0)), "opening_offset_mm": float(w.get("opening_offset_mm", 0.0)), "opening_height_mm": float(w.get("opening_height_mm", 2050.0)), "sill_height_mm": float(w.get("sill_height_mm", 850.0)), "layer": str(w.get("layer", "walls"))})
 			var ffurniture: Array[Dictionary] = []
 			for item in floor_item.get("furniture", []):
 				if item is Dictionary and item.has("position"):
-					ffurniture.append({"kind": int(item.get("kind", 0)), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0))})
+					ffurniture.append({"kind": int(item.get("kind", 0)), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0)), "layer": str(item.get("layer", "furniture"))})
 			floors.append({"name": str(floor_item.get("name", "Этаж %d" % (floors.size() + 1))), "floor_height_mm": float(floor_item.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor_item.get("slab_thickness_mm", 220.0)), "walls": fwalls, "furniture": ffurniture})
 		current_floor = clampi(int(data.get("current_floor", 0)), 0, floors.size() - 1)
 		walls = floors[current_floor].walls.duplicate(true)
