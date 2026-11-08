@@ -41,6 +41,19 @@ func _initialize() -> void:
 	var rectangle := PackedVector2Array([Vector2(0, 0), Vector2(200, 0), Vector2(200, 100), Vector2(0, 100)])
 	assert(is_equal_approx(Geometry.polygon_area(rectangle), 20000.0))
 	assert(is_equal_approx(Geometry.polygon_perimeter(rectangle), 600.0))
+	var square_with_diagonal: Array = [
+		{"a": Vector2(0, 0), "b": Vector2(200, 0)},
+		{"a": Vector2(200, 0), "b": Vector2(200, 100)},
+		{"a": Vector2(200, 100), "b": Vector2(0, 100)},
+		{"a": Vector2(0, 100), "b": Vector2(0, 0)},
+		{"a": Vector2(0, 0), "b": Vector2(200, 100)}
+	]
+	var faces := Geometry.find_bounded_faces(square_with_diagonal)
+	assert(faces.size() == 2)
+	var face_area_total := 0.0
+	for face in faces:
+		face_area_total += Geometry.polygon_area(face)
+	assert(is_equal_approx(face_area_total, 20000.0))
 
 	var invalid := {"a": Vector2.ZERO, "b": Vector2(1.0, 1.0)}
 	assert(not Geometry.valid_wall(invalid))
