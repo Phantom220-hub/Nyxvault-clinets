@@ -389,6 +389,7 @@ func _build_interface() -> void:
 	_add_button(tools, "ОБУЧЕНИЕ", _show_tutorial, false)
 	_add_button(tools, "ЭКСПОРТ JSON", _export_project, false)
 	_add_button(tools, "ЭКСПОРТ DXF", _export_dxf, false)
+	_add_button(tools, "ЭКСПОРТ PDF", _export_plan_pdf, false)
 	_add_button(tools, "PNG СКРИНШОТ", _export_plan_png, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
@@ -2256,6 +2257,73 @@ func _write_dxf_file(path: String) -> void:
 	file.store_string("\n".join(lines) + "\n")
 	file.close()
 	status_label.text = "DXF экспортирован • %d сегментов" % walls.size()
+
+
+func _export_plan_pdf() -> void:
+	var dialog := FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.add_filter("*.pdf", "PDF drawing")
+	dialog.current_file = "dreamhouse_plan.pdf"
+	dialog.file_selected.connect(_write_plan_pdf)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(820, 620))
+
+
+func _write_plan_pdf(path: String) -> void:
+	var min_x := INF
+	var max_x := -INF
+	var min_y := INF
+	var max_y := -INF
+	for wall in walls:
+		var a: Vector2 = wall.get("a", Vector2.ZERO)
+		var b: Vector2 = wall.get("b", Vector2.ZERO)
+		min_x = minf(min_x, minf(a.x, b.x))
+		max_x = maxf(max_x, maxf(a.x, b.x))
+		min_y = minf(min_y, minf(a.y, b.y))
+		max_y = maxf(max_y, maxf(a.y, b.y))
+	if walls.is_empty():
+		status_label.text = "Нет стен для экспорта PDF"
+		return
+	var drawing_width := maxf(1.0, Units.pixels_to_mm(max_x - min_x))
+	var drawing_height := maxf(1.0, Units.pixels_to_mm(max_y - min_y))
+	var scale_factor := minf(720.0 / drawing_width, 420.0 / drawing_height)
+	var content := "BT /F1 18 Tf 30 560 Td (DREAMHOUSE 3D - FLOOR PLAN) Tj ET\n"
+	content += "BT /F1 9 Tf 30 542 Td (Scale is fitted to page; dimensions are in millimetres in the source project.) Tj ET\n"
+	content += "0.8 w 0.1 0.75 0.72 RG\n"
+	for wall in walls:
+		var a: Vector2 = wall.get("a", Vector2.ZERO)
+		var b: Vector2 = wall.get("b", Vector2.ZERO)
+		var ax := 60.0 + Units.pixels_to_mm(a.x - min_x) * scale_factor
+		var ay := 80.0 + Units.pixels_to_mm(max_y - a.y) * scale_factor
+		var bx := 60.0 + Units.pixels_to_mm(b.x - min_x) * scale_factor
+		var by := 80.0 + Units.pixels_to_mm(max_y - b.y) * scale_factor
+		content += "%.2f %.2f m %.2f %.2f l S\n" % [ax, ay, bx, by]
+	var stream := content
+	var objects: Array[String] = [
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+		"<< /Length %d >>\nstream\n%s\nendstream" % [stream.to_utf8_buffer().size(), stream],
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+	]
+	var pdf := "%PDF-1.4\n"
+	var offsets: Array[int] = [0]
+	for index in range(objects.size()):
+		offsets.append(pdf.to_utf8_buffer().size())
+		pdf += "%d 0 obj\n%s\nendobj\n" % [index + 1, objects[index]]
+	var xref_offset := pdf.to_utf8_buffer().size()
+	pdf += "xref\n0 6\n0000000000 65535 f \n"
+	for index in range(1, offsets.size()):
+		pdf += "%010d 00000 n \n" % offsets[index]
+	pdf += "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % xref_offset
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		status_label.text = "Не удалось создать PDF"
+		return
+	file.store_string(pdf)
+	file.close()
+	status_label.text = "PDF экспортирован • %d стен" % walls.size()
 
 
 func _export_plan_png() -> void:
