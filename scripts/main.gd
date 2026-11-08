@@ -495,7 +495,7 @@ func _on_preview_input(event: InputEvent) -> void:
 				furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
 				_sync_plan_furniture()
 				_update_dragged_furniture_node()
-		elif not select_walls_3d:
+		else:
 			camera_yaw -= delta.x * 0.008
 			camera_pitch -= delta.y * 0.006
 			_update_camera()
@@ -543,6 +543,8 @@ func _pick_wall_3d(screen_pos: Vector2) -> void:
 		var selected_b: Vector2 = selected.get("b", Vector2.ZERO)
 		status_label.text = "3D выбрана стена %d • %.0f mm" % [best_index + 1, Units.pixels_to_mm(selected_a.distance_to(selected_b))]
 		_rebuild_3d()
+	else:
+		status_label.text = "Стена не найдена в точке касания"
 
 func _to_viewport_position(container_pos: Vector2) -> Vector2:
 	var viewport := preview.get_child(0) as SubViewport
@@ -558,6 +560,8 @@ func _screen_to_floor(screen_pos: Vector2) -> Variant:
 
 func _toggle_3d_move() -> void:
 	move_mode_3d = not move_mode_3d
+	if move_mode_3d:
+		select_walls_3d = false
 	status_label.text = "3D: перетаскивайте выбранную мебель" if move_mode_3d else "3D: перетаскивание камеры"
 
 func _cycle_material_theme() -> void:
@@ -574,7 +578,7 @@ func _pick_furniture(screen_pos: Vector2) -> void:
 	var best_distance := 90.0
 	for i in range(furniture.size()):
 		var p: Vector2 = furniture[i].get("position", Vector2.ZERO)
-		var floor_y := float(current_floor) * (WALL_HEIGHT + 0.22)
+		var floor_y := _floor_base_y(current_floor)
 		var world_pos := Vector3(p.x, floor_y + 0.8, p.y)
 		if view_camera.is_position_behind(world_pos):
 			continue
@@ -813,6 +817,7 @@ func _switch_floor(direction: int) -> void:
 	selected_furniture = -1
 	_sync_plan_furniture()
 	plan_canvas.walls = walls.duplicate(true)
+	plan_canvas.selected_wall = -1
 	plan_canvas.reset_history()
 	plan_canvas.queue_redraw()
 	if is_3d:
