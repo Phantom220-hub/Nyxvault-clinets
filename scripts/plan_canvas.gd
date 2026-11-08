@@ -282,7 +282,7 @@ func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, 
 	return true
 
 func apply_selected_wall_settings(length_mm: float, thickness_mm: float, height_mm: float, load_bearing: bool, opening_kind: String, opening_width_mm: float, opening_offset_mm: float, sill_height_mm: float, opening_height_mm: float) -> bool:
-	if selected_wall < 0 or selected_wall >= walls.size() or length_mm < 100.0:
+	if selected_wall < 0 or selected_wall >= walls.size() or length_mm < 200.0:
 		return false
 	if opening_kind != "" and opening_kind != "door" and opening_kind != "window":
 		return false
