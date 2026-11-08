@@ -36,6 +36,7 @@ var snap_enabled := true
 var angle_snap_enabled := true
 var angle_snap_degrees := 15.0
 var dimensions_visible := true
+var layer_visibility: Dictionary = {"walls": true, "furniture": true, "rooms": true, "dimensions": true}
 var drag_start_walls: Array[Dictionary] = []
 
 func _ready() -> void:
@@ -54,6 +55,7 @@ func _draw() -> void:
 
 	for item_index in range(furniture.size()):
 		var item: Dictionary = furniture[item_index]
+		if not bool(layer_visibility.get("furniture", true)):\n			continue
 		var world_pos: Vector2 = item.get("position", Vector2.ZERO)
 		var center := Vector2(size.x * 0.5 + world_pos.x * PIXELS_PER_METRE, size.y * 0.5 + world_pos.y * PIXELS_PER_METRE)
 		var kind := int(item.get("kind", 0))
@@ -67,7 +69,7 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(-footprint.x * 0.5 + 2, -footprint.y * 0.5 - 4), labels[clampi(kind, 0, 4)], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#F2F6F8"))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	var room_faces := Geometry.find_bounded_faces(walls)
+	var room_faces := Geometry.find_bounded_faces(walls) if bool(layer_visibility.get("walls", true)) and bool(layer_visibility.get("rooms", true)) else []
 	for room_index in range(room_faces.size()):
 		var polygon: PackedVector2Array = room_faces[room_index]
 		var center := Vector2.ZERO
@@ -80,6 +82,7 @@ func _draw() -> void:
 
 	for i in range(walls.size()):
 		var wall: Dictionary = walls[i]
+		if not bool(layer_visibility.get("walls", true)):\n			continue
 		var a: Vector2 = wall.get("a", Vector2.ZERO)
 		var b: Vector2 = wall.get("b", Vector2.ZERO)
 		var thickness_mm := float(wall.get("thickness_mm", 150.0))
@@ -90,7 +93,7 @@ func _draw() -> void:
 		draw_circle(a, 5.0 if i != selected_wall else 7.0, Color("#EAFBF8"))
 		draw_circle(b, 5.0 if i != selected_wall else 7.0, Color("#EAFBF8"))
 		var mid := (a + b) * 0.5
-		if dimensions_visible:
+		if dimensions_visible and bool(layer_visibility.get("dimensions", true)):
 			var direction := (b - a).normalized()
 			var normal := Vector2(-direction.y, direction.x)
 			var dimension_offset := normal * 22.0
@@ -125,6 +128,12 @@ func set_angle_snap_enabled(enabled: bool) -> void:
 
 func set_dimensions_visible(enabled: bool) -> void:
 	dimensions_visible = enabled
+	queue_redraw()
+
+func set_layer_visibility(layer_name: String, visible: bool) -> void:
+	if not layer_visibility.has(layer_name):
+		return
+	layer_visibility[layer_name] = visible
 	queue_redraw()
 
 func _snap(p: Vector2) -> Vector2:
@@ -240,7 +249,7 @@ func _pointer_up(point: Vector2) -> void:
 		drawing = false
 		if start_point.distance_to(current_point) >= grid_size:
 			_record_history()
-			var new_wall := {"a": start_point, "b": current_point, "thickness_mm": 150.0, "height_mm": 2800.0, "load_bearing": false, "opening": ""}
+			var new_wall := {"a": start_point, "b": current_point, "thickness_mm": 150.0, "height_mm": 2800.0, "load_bearing": false, "opening": "", "layer": "walls"}
 			walls.append(new_wall)
 			selected_wall = walls.size() - 1
 			wall_created.emit(start_point, current_point)
@@ -256,6 +265,10 @@ func _pointer_up(point: Vector2) -> void:
 	queue_redraw()
 
 func _select_wall_at(point: Vector2) -> void:
+	if not bool(layer_visibility.get("walls", true)):
+		selected_wall = -1
+		wall_selected.emit(-1)
+		return
 	var best_index := -1
 	var best_distance := 18.0
 	for i in range(walls.size()):
@@ -389,7 +402,8 @@ func add_wall_by_dimensions(start_mm: Vector2, length_mm: float, angle_degrees: 
 		"thickness_mm": clampf(thickness_mm, 50.0, 1000.0),
 		"height_mm": clampf(height_mm, 1800.0, 10000.0),
 		"load_bearing": false,
-		"opening": ""
+		"opening": "",
+		"layer": "walls"
 	}
 	if not Geometry.valid_wall(new_wall):
 		return false
