@@ -22,6 +22,7 @@ var selected_furniture := -1
 var camera_yaw := 0.72
 var camera_pitch := -0.72
 var camera_distance := 17.0
+var camera_projection := Camera3D.PROJECTION_PERSPECTIVE
 var preview_dragging := false
 var preview_last_pos := Vector2.ZERO
 var pending_opening := ""
@@ -81,6 +82,10 @@ func _build_interface() -> void:
 	_add_button(tools, "ПАРАМЕТРЫ СТЕНЫ", _edit_selected_wall, false)
 	_add_button(tools, "УДАЛИТЬ СТЕНУ", _delete_selected_wall, false)
 	_add_button(tools, "3D ВИД", _show_3d, false)
+	_add_button(tools, "СВЕРХУ", _camera_top, false)
+	_add_button(tools, "СПЕРЕДИ", _camera_front, false)
+	_add_button(tools, "СБОКУ", _camera_side, false)
+	_add_button(tools, "ОРТО/ПЕРСП", _toggle_camera_projection, false)
 	_add_button(tools, "ОБЪЕКТЫ +", _open_object_menu, false)
 	_add_button(tools, "UNDO", _undo, false)
 	_add_button(tools, "REDO", _redo, false)
@@ -435,6 +440,7 @@ func _setup_3d(_viewport: SubViewport) -> void:
 	preview_world.add_child(world_env)
 	view_camera = Camera3D.new()
 	view_camera.fov = 48.0
+	view_camera.projection = camera_projection
 	preview_world.add_child(view_camera)
 	_update_camera()
 	view_camera.current = true
@@ -477,7 +483,7 @@ func _floor_base_y(floor_index: int) -> float:
 func _update_camera() -> void:
 	if not is_instance_valid(view_camera):
 		return
-	camera_pitch = clampf(camera_pitch, -1.25, -0.18)
+	camera_pitch = clampf(camera_pitch, -1.52, -0.12)
 	camera_distance = clampf(camera_distance, 5.0, 34.0)
 	var horizontal := camera_distance * cos(camera_pitch)
 	view_camera.position = Vector3(sin(camera_yaw) * horizontal, -sin(camera_pitch) * camera_distance, cos(camera_yaw) * horizontal)
@@ -485,6 +491,36 @@ func _update_camera() -> void:
 	if floors.size() > 1:
 		building_center_y = (_floor_base_y(floors.size() - 1) + WALL_HEIGHT) * 0.5
 	view_camera.look_at(Vector3(0.0, building_center_y, 0.0), Vector3.UP)
+	if camera_projection == Camera3D.PROJECTION_ORTHOGONAL:
+		view_camera.size = camera_distance
+
+func _camera_top() -> void:
+	camera_yaw = 0.0
+	camera_pitch = -1.48
+	camera_distance = 22.0
+	_update_camera()
+	status_label.text = "Камера: вид сверху"
+
+func _camera_front() -> void:
+	camera_yaw = 0.0
+	camera_pitch = -0.12
+	camera_distance = 18.0
+	_update_camera()
+	status_label.text = "Камера: вид спереди"
+
+func _camera_side() -> void:
+	camera_yaw = PI * 0.5
+	camera_pitch = -0.12
+	camera_distance = 18.0
+	_update_camera()
+	status_label.text = "Камера: вид сбоку"
+
+func _toggle_camera_projection() -> void:
+	camera_projection = Camera3D.PROJECTION_ORTHOGONAL if camera_projection == Camera3D.PROJECTION_PERSPECTIVE else Camera3D.PROJECTION_PERSPECTIVE
+	if is_instance_valid(view_camera):
+		view_camera.projection = camera_projection
+		_update_camera()
+	status_label.text = "Проекция: " + ("ортографическая" if camera_projection == Camera3D.PROJECTION_ORTHOGONAL else "перспективная")
 
 func _on_preview_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT):
@@ -920,7 +956,7 @@ func _save_project() -> void:
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
 		floor_data.append({"walls": fw, "furniture": ff})
-	var data := {"version": 4, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data}
+	var data := {"version": 5, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
 		status_label.text = "Ошибка сохранения"
@@ -942,6 +978,12 @@ func _load_project() -> void:
 	if not data is Dictionary or not data.has("walls"):
 		status_label.text = "Файл проекта повреждён"
 		return
+	var camera_data: Variant = data.get("camera", {})
+	if camera_data is Dictionary:
+		camera_yaw = float(camera_data.get("yaw", camera_yaw))
+		camera_pitch = clampf(float(camera_data.get("pitch", camera_pitch)), -1.52, -0.12)
+		camera_distance = clampf(float(camera_data.get("distance", camera_distance)), 5.0, 34.0)
+		camera_projection = int(camera_data.get("projection", camera_projection))
 	walls.clear()
 	for item in data.get("walls", []):
 		if item is Dictionary and item.has("a") and item.has("b") and item.a.size() == 2 and item.b.size() == 2:
