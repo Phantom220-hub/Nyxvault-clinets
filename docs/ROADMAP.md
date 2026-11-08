@@ -39,7 +39,7 @@ Legend:
 - [ ] Direct furniture rotate/scale gestures.
 - [ ] Multi-select, group/ungroup, duplicate and lock.
 - [ ] Two-finger camera pan/zoom and one-finger orbit with gesture arbitration.
-- [ ] Perspective/orthographic projection and saved camera bookmarks.
+- [~] Perspective/orthographic projection, top/front/side camera presets and camera state saved with the project; named camera bookmarks remain.
 - [ ] Front/side/top/interior camera presets.
 - [~] Furniture drag updates the selected 3D node without rebuilding the full scene; incremental wall/object scene updates remain.
 
@@ -56,7 +56,7 @@ Legend:
 
 ## 4. Floors, ceilings and roofs
 - [~] Basic stacked floor plates.
-- [ ] Independent floor elevation and floor-to-floor height.
+- [~] Independent floor-to-floor height and slab thickness; explicit absolute elevation editing remains.
 - [ ] Floor finish zones and thickness.
 - [ ] Flat, suspended and multi-level ceilings.
 - [ ] Flat, mono-pitch, gable, hip and mansard roofs.
@@ -65,7 +65,7 @@ Legend:
 
 ## 5. Multi-storey buildings and stairs
 - [~] Add/switch floors with independent walls and furniture.
-- [ ] Floor duplication, rename, reorder, visibility and elevation editing.
+- [~] Floor rename and independent floor/slab height settings are stored and used for vertical stacking; duplication, reorder, visibility and custom elevation remain.
 - [ ] Basements and attic levels.
 - [ ] Straight, L, U and spiral staircases.
 - [ ] Stair width, rise, run, tread count, landing and handrails.
