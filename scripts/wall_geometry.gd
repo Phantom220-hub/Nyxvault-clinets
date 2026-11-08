@@ -234,8 +234,7 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 	var b: Vector2 = first.get("b", Vector2.ZERO)
 	var first_dir := (b - a).normalized()
 	var candidate_index := -1
-	var joined_point := Vector2.ZERO
-	var first_far := Vector2.ZERO
+		var first_far := Vector2.ZERO
 	var second_far := Vector2.ZERO
 	for index in range(walls.size()):
 		if index == wall_index:
@@ -243,7 +242,7 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 		var candidate: Dictionary = walls[index]
 		if not valid_wall(candidate):
 			continue
-		if float(candidate.get("thickness_mm", 150.0)) != float(first.get("thickness_mm", 150.0)) or float(candidate.get("height_mm", 2800.0)) != float(first.get("height_mm", 2800.0)) or bool(candidate.get("load_bearing", false)) != bool(first.get("load_bearing", false)):
+		if float(candidate.get("thickness_mm", 150.0)) != float(first.get("thickness_mm", 150.0)) or float(candidate.get("height_mm", 2800.0)) != float(first.get("height_mm", 2800.0)) or bool(candidate.get("load_bearing", false)) != bool(first.get("load_bearing", false)) or str(candidate.get("layer", "walls")) != str(first.get("layer", "walls")):
 			continue
 		var ca: Vector2 = candidate.get("a", Vector2.ZERO)
 		var cb: Vector2 = candidate.get("b", Vector2.ZERO)
@@ -268,7 +267,6 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 				if candidate_index >= 0:
 					return {"ok": false, "error": "ambiguous_multiple_neighbors"}
 				candidate_index = index
-				joined_point = joint
 				first_far = far_first
 				second_far = far_second
 	if candidate_index < 0:
@@ -281,8 +279,7 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 	var merged := first.duplicate(true)
 	var merged_start := first_far
 	var merged_end := second_far
-	var merged_direction := (merged_end - merged_start).normalized()
-	var merged_length_px := merged_start.distance_to(merged_end)
+		var merged_length_px := merged_start.distance_to(merged_end)
 	if merged_length_px < MIN_WALL_LENGTH_PX:
 		return {"ok": false, "error": "merged_wall_invalid"}
 	merged["a"] = merged_start
@@ -305,7 +302,8 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 		if index == mini(wall_index, candidate_index):
 			result.append(merged)
 		if index != wall_index and index != candidate_index:
-			result.append((walls[index] as Dictionary).duplicate(true))
+			var untouched: Dictionary = walls[index]
+			result.append(untouched.duplicate(true))
 	return {"ok": true, "walls": result, "merged_index": mini(wall_index, candidate_index)}
 
 
