@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "**.gd"
+      - "scripts/**"
       - "**.tscn"
       - "**.tres"
       - "**.jpg"
