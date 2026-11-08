@@ -143,7 +143,8 @@ static func split_wall_at_distance(walls: Array, wall_index: int, split_distance
 			result.append(first)
 			result.append(second)
 		else:
-			var untouched: Dictionary = walls[index]\n\t\t\tresult.append(untouched.duplicate(true))
+			var untouched: Dictionary = walls[index]
+			result.append(untouched.duplicate(true))
 	return {"ok": true, "walls": result, "new_index": wall_index + 1}
 
 
@@ -234,7 +235,7 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 	var b: Vector2 = first.get("b", Vector2.ZERO)
 	var first_dir := (b - a).normalized()
 	var candidate_index := -1
-		var first_far := Vector2.ZERO
+	var first_far := Vector2.ZERO
 	var second_far := Vector2.ZERO
 	for index in range(walls.size()):
 		if index == wall_index:
