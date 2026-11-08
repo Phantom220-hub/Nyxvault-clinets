@@ -5,6 +5,7 @@ signal wall_created(a: Vector2, b: Vector2)
 signal wall_selected(index: int)
 signal walls_changed
 signal wall_deleted(index: int)
+signal measurement_completed(distance_m: float, angle_degrees: float)
 
 const Units = preload("res://scripts/building_units.gd")
 const Geometry = preload("res://scripts/wall_geometry.gd")
@@ -36,6 +37,10 @@ var snap_enabled := true
 var angle_snap_enabled := true
 var angle_snap_degrees := 15.0
 var dimensions_visible := true
+var measurement_start := Vector2.ZERO
+var measurement_end := Vector2.ZERO
+var measurement_active := false
+var measurement_visible := false
 var layer_visibility: Dictionary = {"walls": true, "furniture": true, "rooms": true, "dimensions": true}
 var drag_start_walls: Array[Dictionary] = []
 
@@ -119,6 +124,15 @@ func _draw() -> void:
 			draw_circle(a, 9.0, Color("#FFCA78", 0.28))
 			draw_circle(b, 9.0, Color("#FFCA78", 0.28))
 
+	if measurement_visible:
+		draw_line(measurement_start, measurement_end, Color("#FFC878"), 2.0, true)
+		draw_circle(measurement_start, 5.0, Color("#FFC878"))
+		draw_circle(measurement_end, 5.0, Color("#FFC878"))
+		var measured_delta := measurement_end - measurement_start
+		var measured_distance := measured_delta.length() / PIXELS_PER_METRE
+		var measured_angle := rad_to_deg(measured_delta.angle())
+		var measured_label := "%.2f m  •  %.1f°" % [measured_distance, measured_angle]
+		draw_string(ThemeDB.fallback_font, (measurement_start + measurement_end) * 0.5 + Vector2(8, -10), measured_label, HORIZONTAL_ALIGNMENT_LEFT, 220, 13, Color("#FFE2B8"))
 	if drawing:
 		draw_line(start_point, current_point, PREVIEW_COLOR, 7.0, true)
 		draw_circle(start_point, 7.0, PREVIEW_COLOR)
@@ -158,9 +172,12 @@ func _constrained_point(raw_point: Vector2) -> Vector2:
 	return point
 
 func set_tool_mode(mode: String) -> void:
-	tool_mode = "select" if mode == "select" else "draw"
+	tool_mode = "select" if mode == "select" else "measure" if mode == "measure" else "draw"
 	drawing = false
 	dragging_wall = false
+	measurement_active = false
+	if tool_mode != "measure":
+		measurement_visible = false
 	queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
@@ -175,6 +192,9 @@ func _gui_input(event: InputEvent) -> void:
 			queue_redraw()
 		elif dragging_wall:
 			_pointer_drag(event.position)
+		elif tool_mode == "measure" and measurement_active:
+			measurement_end = _snap(event.position)
+			queue_redraw()
 	elif event is InputEventScreenTouch:
 		if event.pressed:
 			_pointer_down(event.position)
@@ -186,12 +206,27 @@ func _gui_input(event: InputEvent) -> void:
 			queue_redraw()
 		elif dragging_wall:
 			_pointer_drag(event.position)
+		elif tool_mode == "measure" and measurement_active:
+			measurement_end = _snap(event.position)
+			queue_redraw()
 
 func _pointer_down(point: Vector2) -> void:
 	if tool_mode == "draw":
 		drawing = true
 		start_point = _snap(point)
 		current_point = start_point
+	elif tool_mode == "measure":
+		var measured_point := _snap(point)
+		if not measurement_active:
+			measurement_start = measured_point
+			measurement_end = measured_point
+			measurement_active = true
+			measurement_visible = true
+		else:
+			measurement_end = measured_point
+			measurement_active = false
+			var delta := measurement_end - measurement_start
+			measurement_completed.emit(delta.length() / PIXELS_PER_METRE, rad_to_deg(delta.angle()))
 	else:
 		_select_wall_at(point)
 		if selected_wall >= 0:
