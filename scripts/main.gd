@@ -78,6 +78,7 @@ func _build_interface() -> void:
 	_add_button(tools, "3D ВИД", _show_3d, false)
 	_add_button(tools, "ОБЪЕКТЫ +", _open_object_menu, false)
 	_add_button(tools, "UNDO", _undo, false)
+	_add_button(tools, "REDO", _redo, false)
 	_add_button(tools, "ОЧИСТИТЬ", _clear, false)
 	_add_button(tools, "ВЫБРАТЬ", _select_next_furniture, false)
 	_add_button(tools, "←", func(): _move_selected(Vector2(-0.25, 0.0)), false)
@@ -324,11 +325,24 @@ func _show_3d() -> void:
 	status_label.text = "3D • Стен: %d • Мебели: %d" % [walls.size(), furniture.size()]
 
 func _undo() -> void:
-	plan_canvas.undo()
-	walls = plan_canvas.walls.duplicate(true)
-	status_label.text = "Последняя стена отменена"
-	if is_3d:
-		_rebuild_3d()
+	if plan_canvas.undo():
+		walls = plan_canvas.walls.duplicate(true)
+		_snapshot_floor()
+		status_label.text = "Отменено последнее изменение стен"
+		if is_3d:
+			_rebuild_3d()
+	else:
+		status_label.text = "История отмены пуста"
+
+func _redo() -> void:
+	if plan_canvas.redo():
+		walls = plan_canvas.walls.duplicate(true)
+		_snapshot_floor()
+		status_label.text = "Изменение стен восстановлено"
+		if is_3d:
+			_rebuild_3d()
+	else:
+		status_label.text = "История повтора пуста"
 
 func _clear() -> void:
 	plan_canvas.clear_plan()
@@ -649,6 +663,7 @@ func _add_floor() -> void:
 	selected_furniture = -1
 	_sync_plan_furniture()
 	plan_canvas.walls.clear()
+	plan_canvas.reset_history()
 	plan_canvas.queue_redraw()
 	if is_3d:
 		_rebuild_3d()
@@ -665,6 +680,7 @@ func _switch_floor(direction: int) -> void:
 	selected_furniture = -1
 	_sync_plan_furniture()
 	plan_canvas.walls = walls.duplicate(true)
+	plan_canvas.reset_history()
 	plan_canvas.queue_redraw()
 	if is_3d:
 		_rebuild_3d()
@@ -835,6 +851,7 @@ func _load_project() -> void:
 		floors = [{"walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
 		current_floor = 0
 	plan_canvas.walls = walls.duplicate(true)
+	plan_canvas.reset_history()
 	plan_canvas.selected_wall = -1
 	_sync_plan_furniture()
 	plan_canvas.queue_redraw()
