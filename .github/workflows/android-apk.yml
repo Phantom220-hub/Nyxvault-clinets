@@ -77,13 +77,13 @@ jobs:
       - name: Export debug APK
         run: |
           mkdir -p build
-          godot --headless --path . --export-debug "Android" build/DreamHouse3D-debug.apk
+          godot --headless --path . --export-debug "Android" build/DreamHouse-3D.apk
           test -s build/DreamHouse3D-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DreamHouse3D-debug-apk
+          name: DreamHouse-3D-apk
           path: build/DreamHouse3D-debug.apk
           if-no-files-found: error
           retention-days: 14
