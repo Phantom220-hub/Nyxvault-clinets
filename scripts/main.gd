@@ -388,10 +388,10 @@ func _build_interface() -> void:
 	_add_button(tools, "ОБУЧЕНИЕ", _show_tutorial, false)
 	_add_button(tools, "ЭКСПОРТ JSON", _export_project, false)
 	_add_button(tools, "ЭКСПОРТ DXF", _export_dxf, false)
-	_add_button(tools, "PNG ПЛАН", _export_plan_png, false)
+	_add_button(tools, "PNG СКРИНШОТ", _export_plan_png, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
-	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4], ["Кухонная тумба", 5], ["Холодильник", 6], ["Унитаз", 7], ["Ванна", 8], ["Раковина", 9], ["Растение", 10], ["Торшер", 11], ["Лестница", 12]]:
+	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4], ["Кухонная тумба", 5], ["Холодильник", 6], ["Унитаз", 7], ["Ванна", 8], ["Раковина", 9], ["Растение", 10], ["Торшер", 11], ["Лестница", 12], ["Розетка", 13], ["Выключатель", 14], ["Радиатор", 15]]:
 		object_menu.add_item(pair[0], pair[1])
 	object_menu.id_pressed.connect(_on_object_selected)
 	add_child(object_menu)
@@ -493,7 +493,7 @@ func _open_object_menu() -> void:
 	object_menu.popup()
 
 func _on_object_selected(id: int) -> void:
-	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф", "Кухонная тумба", "Холодильник", "Унитаз", "Ванна", "Раковина", "Растение", "Торшер", "Лестница"]
+	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф", "Кухонная тумба", "Холодильник", "Унитаз", "Ванна", "Раковина", "Растение", "Торшер", "Лестница", "Розетка", "Выключатель", "Радиатор"]
 	var index := furniture.size()
 	var placement := Vector2(float((index % 3) - 1) * 2.4, float(int(index / 3)) * 2.4)
 	furniture.append({"kind": id, "position": placement, "rotation": 0.0, "scale": 1.0, "layer": "furniture"})
@@ -1661,6 +1661,17 @@ func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0, floor_
 				var step_depth := 0.28
 				var step_height := 0.22
 				_box(group, Vector3(1.0, step_height, 0.55), Vector3(0, step_height * (step_index + 0.5), -0.95 + step_depth * step_index), wood)
+		13:
+			_box(group, Vector3(0.16, 0.16, 0.045), c + Vector3(0, 1.0, 0), soft)
+			_box(group, Vector3(0.025, 0.06, 0.025), c + Vector3(-0.035, 1.0, 0.03), metal)
+			_box(group, Vector3(0.025, 0.06, 0.025), c + Vector3(0.035, 1.0, 0.03), metal)
+		14:
+			_box(group, Vector3(0.12, 0.18, 0.04), c + Vector3(0, 1.1, 0), soft)
+			_box(group, Vector3(0.035, 0.08, 0.025), c + Vector3(0, 1.1, 0.025), metal)
+		15:
+			_box(group, Vector3(1.1, 0.55, 0.18), c + Vector3(0, 0.55, 0), soft)
+			for rib_index in range(6):
+				_box(group, Vector3(0.035, 0.46, 0.2), c + Vector3(-0.45 + rib_index * 0.18, 0.55, 0), metal)
 
 
 func _snapshot_floor() -> void:
@@ -2236,10 +2247,10 @@ func _export_plan_png() -> void:
 	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.add_filter("*.png", "PNG image")
-	dialog.current_file = "dreamhouse_plan.png"
+	dialog.current_file = "dreamhouse_screen.png"
 	dialog.file_selected.connect(func(path: String):
 		var result := image.save_png(path)
-		status_label.text = "PNG сохранён" if result == OK else "Ошибка сохранения PNG"
+		status_label.text = "Скриншот PNG сохранён" if result == OK else "Ошибка сохранения PNG"
 	)
 	add_child(dialog)
 	dialog.popup_centered(Vector2i(820, 620))
