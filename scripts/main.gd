@@ -15,6 +15,13 @@ var walls: Array[Dictionary] = []
 var furniture: Array[Dictionary] = []
 var is_3d := false
 var object_menu: PopupMenu
+var view_camera: Camera3D
+var selected_furniture := -1
+var camera_yaw := 0.72
+var camera_pitch := -0.72
+var camera_distance := 17.0
+var preview_dragging := false
+var preview_last_pos := Vector2.ZERO
 
 func _ready() -> void:
 	_build_interface()
@@ -60,6 +67,15 @@ func _build_interface() -> void:
 	_add_button(tools, "ОБЪЕКТЫ +", _open_object_menu, false)
 	_add_button(tools, "UNDO", _undo, false)
 	_add_button(tools, "ОЧИСТИТЬ", _clear, false)
+	_add_button(tools, "ВЫБРАТЬ", _select_next_furniture, false)
+	_add_button(tools, "←", func(): _move_selected(Vector2(-0.25, 0.0)), false)
+	_add_button(tools, "→", func(): _move_selected(Vector2(0.25, 0.0)), false)
+	_add_button(tools, "↑", func(): _move_selected(Vector2(0.0, -0.25)), false)
+	_add_button(tools, "↓", func(): _move_selected(Vector2(0.0, 0.25)), false)
+	_add_button(tools, "ПОВОРОТ", _rotate_selected, false)
+	_add_button(tools, "МАСШТАБ +", func(): _scale_selected(1.1), false)
+	_add_button(tools, "МАСШТАБ −", func(): _scale_selected(0.9), false)
+	_add_button(tools, "УДАЛИТЬ", _delete_selected, false)
 	object_menu = PopupMenu.new()
 	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4]]:
 		object_menu.add_item(pair[0], pair[1])
@@ -83,6 +99,7 @@ func _build_interface() -> void:
 	preview.offset_bottom = -100
 	preview.stretch = true
 	preview.visible = false
+	preview.gui_input.connect(_on_preview_input)
 	add_child(preview)
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(900, 1400)
@@ -155,7 +172,8 @@ func _on_object_selected(id: int) -> void:
 	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф"]
 	var index := furniture.size()
 	var placement := Vector2(float((index % 3) - 1) * 2.4, float(int(index / 3)) * 2.4)
-	furniture.append({"kind": id, "position": placement})
+	furniture.append({"kind": id, "position": placement, "rotation": 0.0, "scale": 1.0})
+	selected_furniture = furniture.size() - 1
 	status_label.text = "Добавлен объект: %s • Всего: %d" % [names[id], furniture.size()]
 	if is_3d:
 		_rebuild_3d()
@@ -209,12 +227,11 @@ func _setup_3d(_viewport: SubViewport) -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	world_env.environment = env
 	preview_world.add_child(world_env)
-	var camera := Camera3D.new()
-	camera.position = Vector3(10, 10, 12)
-	camera.fov = 48.0
-	camera.look_at(Vector3.ZERO, Vector3.UP)
-	preview_world.add_child(camera)
-	camera.current = true
+	view_camera = Camera3D.new()
+	view_camera.fov = 48.0
+	preview_world.add_child(view_camera)
+	_update_camera()
+	view_camera.current = true
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-48, -32, 0)
 	sun.light_energy = 1.4
@@ -241,6 +258,104 @@ func _box(parent: Node3D, size_3d: Vector3, pos: Vector3, material: Material) ->
 	mesh.material_override = material
 	parent.add_child(mesh)
 	return mesh
+
+func _update_camera() -> void:
+	if not is_instance_valid(view_camera):
+		return
+	camera_pitch = clampf(camera_pitch, -1.25, -0.18)
+	camera_distance = clampf(camera_distance, 5.0, 34.0)
+	var horizontal := camera_distance * cos(camera_pitch)
+	view_camera.position = Vector3(sin(camera_yaw) * horizontal, -sin(camera_pitch) * camera_distance, cos(camera_yaw) * horizontal)
+	view_camera.look_at(Vector3.ZERO, Vector3.UP)
+
+func _on_preview_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT):
+		if event.pressed:
+			preview_dragging = true
+			preview_last_pos = event.position
+		else:
+			if preview_dragging and preview_last_pos.distance_to(event.position) < 12.0:
+				_pick_furniture(event.position)
+			preview_dragging = false
+	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and preview_dragging:
+		var delta := event.position - preview_last_pos
+		preview_last_pos = event.position
+		camera_yaw -= delta.x * 0.008
+		camera_pitch -= delta.y * 0.006
+		_update_camera()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		camera_distance -= 1.0
+		_update_camera()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		camera_distance += 1.0
+		_update_camera()
+
+func _pick_furniture(screen_pos: Vector2) -> void:
+	if furniture.is_empty() or not is_instance_valid(view_camera):
+		return
+	var best_index := -1
+	var best_distance := 90.0
+	for i in range(furniture.size()):
+		var p: Vector2 = furniture[i].get("position", Vector2.ZERO)
+		var world_pos := Vector3(p.x, 0.8, p.y)
+		if view_camera.is_position_behind(world_pos):
+			continue
+		var d := view_camera.unproject_position(world_pos).distance_to(screen_pos)
+		if d < best_distance:
+			best_distance = d
+			best_index = i
+	if best_index >= 0:
+		selected_furniture = best_index
+		status_label.text = "Выбран объект %d из %d" % [best_index + 1, furniture.size()]
+		_rebuild_3d()
+
+func _select_next_furniture() -> void:
+	if furniture.is_empty():
+		status_label.text = "Сначала добавьте мебель"
+		return
+	selected_furniture = (selected_furniture + 1) % furniture.size()
+	status_label.text = "Выбран объект %d из %d" % [selected_furniture + 1, furniture.size()]
+	if is_3d:
+		_rebuild_3d()
+
+func _move_selected(offset: Vector2) -> void:
+	if selected_furniture < 0 or selected_furniture >= furniture.size():
+		status_label.text = "Сначала выберите мебель"
+		return
+	var p: Vector2 = furniture[selected_furniture].get("position", Vector2.ZERO)
+	furniture[selected_furniture]["position"] = p + offset
+	status_label.text = "Мебель перемещена"
+	if is_3d:
+		_rebuild_3d()
+
+func _rotate_selected() -> void:
+	if selected_furniture < 0 or selected_furniture >= furniture.size():
+		status_label.text = "Сначала выберите мебель"
+		return
+	furniture[selected_furniture]["rotation"] = float(furniture[selected_furniture].get("rotation", 0.0)) + PI / 4.0
+	status_label.text = "Поворот: 45°"
+	if is_3d:
+		_rebuild_3d()
+
+func _scale_selected(factor: float) -> void:
+	if selected_furniture < 0 or selected_furniture >= furniture.size():
+		status_label.text = "Сначала выберите мебель"
+		return
+	var value := clampf(float(furniture[selected_furniture].get("scale", 1.0)) * factor, 0.5, 1.8)
+	furniture[selected_furniture]["scale"] = value
+	status_label.text = "Размер объекта: %.0f%%" % (value * 100.0)
+	if is_3d:
+		_rebuild_3d()
+
+func _delete_selected() -> void:
+	if selected_furniture < 0 or selected_furniture >= furniture.size():
+		status_label.text = "Сначала выберите мебель"
+		return
+	furniture.remove_at(selected_furniture)
+	selected_furniture = mini(selected_furniture, furniture.size() - 1)
+	status_label.text = "Объект удалён"
+	if is_3d:
+		_rebuild_3d()
 
 func _rebuild_3d() -> void:
 	if not is_instance_valid(preview_world):
@@ -278,33 +393,42 @@ func _rebuild_3d() -> void:
 func _add_furniture(root: Node3D, item: Dictionary) -> void:
 	var kind := int(item.get("kind", 0))
 	var p: Vector2 = item.get("position", Vector2.ZERO)
-	var c := Vector3(p.x, 0, p.y)
+	var group := Node3D.new()
+	group.position = Vector3(p.x, 0, p.y)
+	group.rotation.y = float(item.get("rotation", 0.0))
+	group.scale = Vector3.ONE * float(item.get("scale", 1.0))
+	root.add_child(group)
+	if furniture.find(item) == selected_furniture:
+		var marker_mat := _mat(Color("#52D6C7", 0.22), 0.3)
+		var marker_mesh := _box(group, Vector3(2.5, 0.035, 2.5), Vector3(0, 0.025, 0), marker_mat)
+		marker_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var c := Vector3.ZERO
 	var wood := _mat(Color("#8B6549"), 0.5)
 	var fabric := _mat(Color("#477E83"), 0.95)
 	var soft := _mat(Color("#B7D0C8"), 0.95)
 	var metal := _mat(Color("#333E47"), 0.35)
 	match kind:
 		0:
-			_box(root, Vector3(2.1, 0.42, 0.85), c + Vector3(0, 0.42, 0), fabric)
-			_box(root, Vector3(2.1, 0.72, 0.2), c + Vector3(0, 0.86, -0.33), fabric)
+			_box(group, Vector3(2.1, 0.42, 0.85), c + Vector3(0, 0.42, 0), fabric)
+			_box(group, Vector3(2.1, 0.72, 0.2), c + Vector3(0, 0.86, -0.33), fabric)
 			for x in [-0.88, 0.88]:
-				_box(root, Vector3(0.2, 0.72, 0.85), c + Vector3(x, 0.68, 0), fabric)
-			_box(root, Vector3(1.5, 0.12, 0.58), c + Vector3(0, 0.7, 0.04), soft)
+				_box(group, Vector3(0.2, 0.72, 0.85), c + Vector3(x, 0.68, 0), fabric)
+			_box(group, Vector3(1.5, 0.12, 0.58), c + Vector3(0, 0.7, 0.04), soft)
 		1:
-			_box(root, Vector3(2.2, 0.28, 2.7), c + Vector3(0, 0.38, 0), wood)
-			_box(root, Vector3(2.05, 0.22, 2.5), c + Vector3(0, 0.62, 0), soft)
-			_box(root, Vector3(2.2, 1.1, 0.16), c + Vector3(0, 0.85, -1.32), wood)
+			_box(group, Vector3(2.2, 0.28, 2.7), c + Vector3(0, 0.38, 0), wood)
+			_box(group, Vector3(2.05, 0.22, 2.5), c + Vector3(0, 0.62, 0), soft)
+			_box(group, Vector3(2.2, 1.1, 0.16), c + Vector3(0, 0.85, -1.32), wood)
 		2:
-			_box(root, Vector3(1.8, 0.12, 1.1), c + Vector3(0, 0.95, 0), wood)
+			_box(group, Vector3(1.8, 0.12, 1.1), c + Vector3(0, 0.95, 0), wood)
 			for x in [-0.72, 0.72]:
 				for z in [-0.38, 0.38]:
-					_box(root, Vector3(0.09, 0.9, 0.09), c + Vector3(x, 0.45, z), metal)
+					_box(group, Vector3(0.09, 0.9, 0.09), c + Vector3(x, 0.45, z), metal)
 		3:
-			_box(root, Vector3(0.95, 0.42, 0.9), c + Vector3(0, 0.48, 0), fabric)
-			_box(root, Vector3(0.95, 0.8, 0.18), c + Vector3(0, 0.92, -0.36), fabric)
+			_box(group, Vector3(0.95, 0.42, 0.9), c + Vector3(0, 0.48, 0), fabric)
+			_box(group, Vector3(0.95, 0.8, 0.18), c + Vector3(0, 0.92, -0.36), fabric)
 		4:
-			_box(root, Vector3(1.25, 2.1, 0.65), c + Vector3(0, 1.05, 0), wood)
-			_box(root, Vector3(0.025, 1.9, 0.02), c + Vector3(0, 1.05, 0.34), metal)
+			_box(group, Vector3(1.25, 2.1, 0.65), c + Vector3(0, 1.05, 0), wood)
+			_box(group, Vector3(0.025, 1.9, 0.02), c + Vector3(0, 1.05, 0.34), metal)
 
 func _save_project() -> void:
 	var wall_data: Array[Dictionary] = []
@@ -313,7 +437,7 @@ func _save_project() -> void:
 	var furniture_data: Array[Dictionary] = []
 	for item in furniture:
 		var p: Vector2 = item.get("position", Vector2.ZERO)
-		furniture_data.append({"kind": item.get("kind", 0), "position": [p.x, p.y]})
+		furniture_data.append({"kind": item.get("kind", 0), "position": [p.x, p.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0)})
 	var data := {"version": 2, "walls": wall_data, "furniture": furniture_data}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
@@ -343,7 +467,7 @@ func _load_project() -> void:
 	furniture.clear()
 	for item in data.get("furniture", []):
 		if item is Dictionary and item.has("kind") and item.has("position") and item.position.size() == 2:
-			furniture.append({"kind": int(item.kind), "position": Vector2(float(item.position[0]), float(item.position[1]))})
+			furniture.append({"kind": int(item.kind), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0))})
 	plan_canvas.walls = walls.duplicate(true)
 	plan_canvas.queue_redraw()
 	status_label.text = "Загружено • %d стен • %d объектов" % [walls.size(), furniture.size()]
