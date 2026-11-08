@@ -151,12 +151,12 @@ Legend:
 ## 14. Project management and data integrity
 - [~] JSON save/load for current walls, furniture and floors.
 - [x] Persist wall thickness, height and bearing classification in floor records.
-- [ ] Named multi-project manager.
-- [ ] Autosave, manual save and recovery snapshots.
-- [ ] Versioned schema migrations and corrupt-file recovery.
+- [~] Named multi-project manager with local list, save-as, open, duplicate and delete; robust project metadata and conflict handling remain.
+- [~] Manual save, 60-second autosave and recovery prompt exist; durable autosave rotation and device-interruption validation remain.
+- [~] Versioned JSON migrations through schema v8, validation, backup-on-save and backup recovery are integrated into project save/load/import; regression tests are added to CI but not yet executed.
 - [~] Persist wall opening geometry and wall construction properties across floors; materials, layers, roof, stairs, MEP and dimensions remain.
 - [ ] Reliable import/export on Android scoped storage.
-- [ ] Backup/restore and project comparison.
+- [~] Previous project backup and automatic recovery from a valid .bak file; user-facing backup selection and project comparison remain.
 
 ## 15. Presentation and workflow
 - [~] Startup home menu, tutorial and furniture/site/roof primitives; reusable complete house templates remain.
