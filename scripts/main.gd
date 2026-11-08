@@ -49,6 +49,9 @@ var autosave_timer: Timer
 var sun_light: DirectionalLight3D
 var shadows_enabled := true
 var roof_style := 1 # 0 flat, 1 gable
+var site_enabled := false
+var site_width_m := 20.0
+var site_depth_m := 20.0
 
 func _ready() -> void:
 	floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []}]
@@ -380,6 +383,7 @@ func _build_interface() -> void:
 	_add_button(tools, "КОНЦЫ СТЕН 3D", _toggle_3d_wall_endpoint_edit, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
 	_add_button(tools, "КРЫША", _toggle_roof_style, false)
+	_add_button(tools, "УЧАСТОК", _toggle_site, false)
 	_add_button(tools, "ПРОЕКТЫ", _open_project_manager, false)
 	_add_button(tools, "ОБУЧЕНИЕ", _show_tutorial, false)
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
@@ -1437,10 +1441,56 @@ func _rebuild_3d() -> void:
 		if bool(plan_canvas.layer_visibility.get("furniture", true)):
 			for furniture_index in range(floor_furniture.size()):
 				_add_furniture(root, floor_furniture[furniture_index], base_y, floor_index, furniture_index)
+	if site_enabled:
+		_add_site_geometry(root)
 	_add_roof_geometry(root)
 	_update_camera()
 	if floors.size() > 1:
 		status_label.text = "3D • показаны все этажи: %d" % floors.size()
+
+func _toggle_site() -> void:
+	site_enabled = not site_enabled
+	if is_3d:
+		_rebuild_3d()
+	status_label.text = "Участок: " + ("показан %.0f × %.0f м" % [site_width_m, site_depth_m] if site_enabled else "скрыт")
+
+
+func _add_site_geometry(root: Node3D) -> void:
+	var half_w := site_width_m * 0.5
+	var half_d := site_depth_m * 0.5
+	var lawn := _mat(Color("#547B50"), 1.0)
+	var fence := _mat(Color("#B7B2A5"), 0.82)
+	var path_material := _mat(Color("#A9A39A"), 0.95)
+	_box(root, Vector3(site_width_m, 0.06, site_depth_m), Vector3(0, -0.12, 0), lawn)
+	_box(root, Vector3(1.4, 0.025, half_d), Vector3(0, -0.075, half_d * 0.5), path_material)
+	for x in [-half_w, half_w]:
+		_box(root, Vector3(0.12, 1.25, site_depth_m), Vector3(x, 0.58, 0), fence)
+	for z in [-half_d, half_d]:
+		if z > 0.0:
+			_box(root, Vector3(site_width_m, 1.25, 0.12), Vector3(0, 0.58, z), fence)
+		else:
+			_box(root, Vector3(site_width_m * 0.38, 1.25, 0.12), Vector3(-site_width_m * 0.31, 0.58, z), fence)
+			_box(root, Vector3(site_width_m * 0.38, 1.25, 0.12), Vector3(site_width_m * 0.31, 0.58, z), fence)
+			_box(root, Vector3(0.08, 1.25, 0.12), Vector3(0, 0.58, z), fence)
+	for tree_pos in [Vector3(-half_w * 0.72, 0, -half_d * 0.7), Vector3(half_w * 0.72, 0, -half_d * 0.7), Vector3(-half_w * 0.72, 0, half_d * 0.65), Vector3(half_w * 0.72, 0, half_d * 0.65)]:
+		var trunk := MeshInstance3D.new()
+		var trunk_mesh := CylinderMesh.new()
+		trunk_mesh.top_radius = 0.12
+		trunk_mesh.bottom_radius = 0.18
+		trunk_mesh.height = 1.6
+		trunk.mesh = trunk_mesh
+		trunk.position = tree_pos + Vector3(0, 0.8, 0)
+		trunk.material_override = _mat(Color("#79583E"), 0.9)
+		root.add_child(trunk)
+		var crown := MeshInstance3D.new()
+		var crown_mesh := SphereMesh.new()
+		crown_mesh.radius = 0.9
+		crown_mesh.height = 1.8
+		crown.mesh = crown_mesh
+		crown.position = tree_pos + Vector3(0, 2.0, 0)
+		crown.material_override = _mat(Color("#477A4B"), 0.95)
+		root.add_child(crown)
+
 
 func _toggle_roof_style() -> void:
 	roof_style = 1 - roof_style
@@ -2214,7 +2264,7 @@ func _save_project() -> void:
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
 		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "visible": bool(floor.get("visible", true)), "walls": fw, "furniture": ff})
-	var data := {"version": 6, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
+	var data := {"version": 6, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}, "roof_style": roof_style, "site": {"enabled": site_enabled, "width_m": site_width_m, "depth_m": site_depth_m}}
 	if FileAccess.file_exists("user://dreamhouse_project.json"):
 		_copy_user_file("user://dreamhouse_project.json", "user://dreamhouse_project_previous.json")
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
@@ -2247,6 +2297,12 @@ func _load_project() -> void:
 	if saved_layers is Dictionary:
 		for layer_name in plan_canvas.layer_visibility.keys():
 			plan_canvas.layer_visibility[layer_name] = bool(saved_layers.get(layer_name, plan_canvas.layer_visibility[layer_name]))
+	roof_style = clampi(int(data.get("roof_style", roof_style)), 0, 1)
+	var site_data: Variant = data.get("site", {})
+	if site_data is Dictionary:
+		site_enabled = bool(site_data.get("enabled", false))
+		site_width_m = clampf(float(site_data.get("width_m", 20.0)), 5.0, 100.0)
+		site_depth_m = clampf(float(site_data.get("depth_m", 20.0)), 5.0, 100.0)
 	var camera_data: Variant = data.get("camera", {})
 	if camera_data is Dictionary:
 		camera_yaw = float(camera_data.get("yaw", camera_yaw))
