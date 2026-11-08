@@ -46,6 +46,7 @@ func _ready() -> void:
 	floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []}]
 	_build_interface()
 	_rebuild_3d()
+	_setup_keyboard_shortcuts()
 	_start_autosave()
 	call_deferred("_check_autosave_recovery")
 
@@ -137,6 +138,7 @@ func _build_interface() -> void:
 	_add_button(tools, "КОНЦЫ СТЕН 3D", _toggle_3d_wall_endpoint_edit, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
 	_add_button(tools, "ПРОЕКТЫ", _open_project_manager, false)
+	_add_button(tools, "ОБУЧЕНИЕ", _show_tutorial, false)
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
@@ -1312,6 +1314,88 @@ func _calculate_room_areas() -> void:
 		total_area_m2 += Geometry.polygon_area(face) / (PPM * PPM)
 		total_perimeter_m += Geometry.polygon_perimeter(face) / PPM
 	status_label.text = "Этаж %d • помещений: %d • площадь: %.2f м² • периметры: %.2f м" % [current_floor + 1, faces.size(), total_area_m2, total_perimeter_m]
+
+func _setup_keyboard_shortcuts() -> void:
+	set_process_unhandled_key_input(true)
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo or not event.ctrl_pressed:
+		return
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus is LineEdit or focus is SpinBox:
+		return
+	match event.keycode:
+		KEY_S:
+			_save_project()
+		KEY_O:
+			_import_project()
+		KEY_Z:
+			_undo()
+		KEY_Y:
+			_redo()
+		KEY_2:
+			_show_plan()
+		KEY_3:
+			_show_3d()
+		_ :
+			return
+	event.accept()
+
+
+func _show_tutorial() -> void:
+	var pages: Array[String] = [
+		"ШАГ 1/5 • 2D-ПЛАН\\nВыберите инструмент стен и проведите пальцем от начала к концу. Сетка помогает держать масштаб; угол 15° можно включить отдельной кнопкой. Выберите стену, чтобы изменить длину, толщину, высоту и проёмы.",
+		"ШАГ 2/5 • РЕДАКТИРОВАНИЕ CAD\\nВыберите стену. Используйте разделение, объединение коллинеарных сегментов, копирование, зеркало и массив. Кнопка «УЗЛЫ: РЕШИТЬ» разбивает T- и крестообразные пересечения. Пересечения через дверные и оконные проёмы отклоняются.",
+		"ШАГ 3/5 • 3D-РЕДАКТОР\\nОткройте 3D. Коснитесь «СТЕНА В 3D», укажите начальную и конечную точки на уровне этажа. «КОНЦЫ СТЕН 3D» позволяет перетаскивать соединённые концы стен. «ВЫБРАТЬ СТЕНУ 3D» включает выбор стены.",
+		"ШАГ 4/5 • ИЗМЕРЕНИЯ\\nВ 2D включите «ИЗМЕРИТЬ» и коснитесь двух точек для расстояния и угла. «ПЛОЩАДЬ» считает замкнутые комнаты. «СВОДКА ЗДАНИЯ» выводит площадь, периметры, объём и оценку площади стен.",
+		"ШАГ 5/5 • ЭТАЖИ И ПРОЕКТЫ\\nДобавляйте этажи, задавайте высоту и толщину перекрытия, копируйте и меняйте порядок этажей. «ПРОЕКТЫ» сохраняет несколько именованных проектов, а автосохранение работает раз в минуту. Экспорт JSON можно открыть в другой копии приложения.\\n\\nКлавиши: Ctrl+S сохранить, Ctrl+O импорт, Ctrl+Z отмена, Ctrl+Y повтор, Ctrl+2 план, Ctrl+3 3D."
+	]
+	var window := Window.new()
+	window.title = "Обучение DreamHouse 3D"
+	window.size = Vector2i(560, 360)
+	window.min_size = Vector2i(380, 280)
+	window.transient = true
+	window.exclusive = true
+	var root := VBoxContainer.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_theme_constant_override("separation", 12)
+	window.add_child(root)
+	var page_label := Label.new()
+	page_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	page_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(page_label)
+	var buttons := HBoxContainer.new()
+	root.add_child(buttons)
+	var previous := Button.new()
+	previous.text = "НАЗАД"
+	buttons.add_child(previous)
+	var next := Button.new()
+	next.text = "ДАЛЕЕ"
+	buttons.add_child(next)
+	var close := Button.new()
+	close.text = "ЗАКРЫТЬ"
+	buttons.add_child(close)
+	var page_index := 0
+	var render_page := func():
+		page_label.text = pages[page_index]
+		previous.disabled = page_index == 0
+		next.text = "ЗАВЕРШИТЬ" if page_index == pages.size() - 1 else "ДАЛЕЕ"
+	previous.pressed.connect(func():
+		page_index = maxi(0, page_index - 1)
+		render_page.call()
+	)
+	next.pressed.connect(func():
+		if page_index >= pages.size() - 1:
+			window.queue_free()
+		else:
+			page_index += 1
+			render_page.call()
+	)
+	close.pressed.connect(func(): window.queue_free())
+	add_child(window)
+	render_page.call()
+	window.popup_centered()
 
 func _ensure_projects_directory() -> void:
 	DirAccess.make_dir_recursive("user://projects")
