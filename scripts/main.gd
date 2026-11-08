@@ -384,6 +384,7 @@ func _build_interface() -> void:
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
 	_add_button(tools, "КРЫША", _toggle_roof_style, false)
 	_add_button(tools, "УЧАСТОК", _toggle_site, false)
+	_add_button(tools, "РАЗМЕРЫ УЧАСТКА", _show_site_settings, false)
 	_add_button(tools, "ПРОЕКТЫ", _open_project_manager, false)
 	_add_button(tools, "ОБУЧЕНИЕ", _show_tutorial, false)
 	_add_button(tools, "ЭКСПОРТ JSON", _export_project, false)
@@ -1457,6 +1458,25 @@ func _toggle_site() -> void:
 	status_label.text = "Участок: " + ("показан %.0f × %.0f м" % [site_width_m, site_depth_m] if site_enabled else "скрыт")
 
 
+func _show_site_settings() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Размеры участка, метры"
+	var form := VBoxContainer.new()
+	dialog.add_child(form)
+	var width_input := _estimate_spin(form, "Ширина участка, м", 5, 100, site_width_m)
+	var depth_input := _estimate_spin(form, "Глубина участка, м", 5, 100, site_depth_m)
+	dialog.confirmed.connect(func():
+		site_width_m = width_input.value
+		site_depth_m = depth_input.value
+		site_enabled = true
+		_rebuild_3d()
+		_save_project()
+		status_label.text = "Участок обновлён: %.0f × %.0f м" % [site_width_m, site_depth_m]
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+
 func _add_site_geometry(root: Node3D) -> void:
 	var half_w := site_width_m * 0.5
 	var half_d := site_depth_m * 0.5
@@ -2326,7 +2346,7 @@ func _save_project() -> void:
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
 		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "visible": bool(floor.get("visible", true)), "walls": fw, "furniture": ff})
-	var data := {"version": 6, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}, "roof_style": roof_style, "site": {"enabled": site_enabled, "width_m": site_width_m, "depth_m": site_depth_m}}
+	var data := {"version": 7, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}, "roof_style": roof_style, "site": {"enabled": site_enabled, "width_m": site_width_m, "depth_m": site_depth_m}}
 	if FileAccess.file_exists("user://dreamhouse_project.json"):
 		_copy_user_file("user://dreamhouse_project.json", "user://dreamhouse_project_previous.json")
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
