@@ -66,6 +66,17 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(-footprint.x * 0.5 + 2, -footprint.y * 0.5 - 4), labels[clampi(kind, 0, 4)], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#F2F6F8"))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
+	var room_faces := Geometry.find_bounded_faces(walls)
+	for room_index in range(room_faces.size()):
+		var polygon: PackedVector2Array = room_faces[room_index]
+		var center := Vector2.ZERO
+		for vertex in polygon:
+			center += vertex
+		center /= float(polygon.size())
+		var area_m2 := Geometry.polygon_area(polygon) / (PIXELS_PER_METRE * PIXELS_PER_METRE)
+		draw_string(ThemeDB.fallback_font, center + Vector2(-34, -4), "КОМНАТА %d" % (room_index + 1), HORIZONTAL_ALIGNMENT_LEFT, 100, 10, Color("#A7C8D0"))
+		draw_string(ThemeDB.fallback_font, center + Vector2(-18, 12), "%.2f м²" % area_m2, HORIZONTAL_ALIGNMENT_LEFT, 80, 11, Color("#EAFBF8"))
+
 	for i in range(walls.size()):
 		var wall: Dictionary = walls[i]
 		var a: Vector2 = wall.get("a", Vector2.ZERO)
