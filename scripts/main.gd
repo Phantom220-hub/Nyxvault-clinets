@@ -1053,7 +1053,7 @@ func _load_project() -> void:
 		walls = floors[current_floor].walls.duplicate(true)
 		furniture = floors[current_floor].furniture.duplicate(true)
 	else:
-		floors = [{"walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
+		floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
 		current_floor = 0
 	plan_canvas.walls = walls.duplicate(true)
 	plan_canvas.reset_history()
