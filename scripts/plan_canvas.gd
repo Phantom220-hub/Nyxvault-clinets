@@ -35,6 +35,7 @@ var grid_size := 32.0
 var snap_enabled := true
 var angle_snap_enabled := true
 var angle_snap_degrees := 15.0
+var dimensions_visible := true
 var drag_start_walls: Array[Dictionary] = []
 
 func _ready() -> void:
@@ -89,7 +90,20 @@ func _draw() -> void:
 		draw_circle(a, 5.0 if i != selected_wall else 7.0, Color("#EAFBF8"))
 		draw_circle(b, 5.0 if i != selected_wall else 7.0, Color("#EAFBF8"))
 		var mid := (a + b) * 0.5
-		draw_string(ThemeDB.fallback_font, mid + Vector2(7, -10), Units.format_metres(a.distance_to(b) / PIXELS_PER_METRE), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#D9F5F0"))
+		if dimensions_visible:
+			var direction := (b - a).normalized()
+			var normal := Vector2(-direction.y, direction.x)
+			var dimension_offset := normal * 22.0
+			var dimension_a := a + dimension_offset
+			var dimension_b := b + dimension_offset
+			draw_line(a + normal * 5.0, dimension_a + normal * 4.0, Color("#8DAAB5"), 1.0)
+			draw_line(b + normal * 5.0, dimension_b + normal * 4.0, Color("#8DAAB5"), 1.0)
+			draw_line(dimension_a, dimension_b, Color("#A7C8D0"), 1.2)
+			draw_line(dimension_a - normal * 4.0, dimension_a + normal * 4.0, Color("#A7C8D0"), 1.2)
+			draw_line(dimension_b - normal * 4.0, dimension_b + normal * 4.0, Color("#A7C8D0"), 1.2)
+			draw_string(ThemeDB.fallback_font, mid + dimension_offset + Vector2(5, -4), Units.format_metres(a.distance_to(b) / PIXELS_PER_METRE), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("#D9F5F0"))
+		else:
+			draw_string(ThemeDB.fallback_font, mid + Vector2(7, -10), Units.format_metres(a.distance_to(b) / PIXELS_PER_METRE), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#D9F5F0"))
 		var opening := str(wall.get("opening", ""))
 		if opening == "door" or opening == "window":
 			var wall_length_mm := Units.pixels_to_mm(a.distance_to(b))
@@ -107,6 +121,10 @@ func _draw() -> void:
 
 func set_angle_snap_enabled(enabled: bool) -> void:
 	angle_snap_enabled = enabled
+	queue_redraw()
+
+func set_dimensions_visible(enabled: bool) -> void:
+	dimensions_visible = enabled
 	queue_redraw()
 
 func _snap(p: Vector2) -> Vector2:
