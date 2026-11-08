@@ -143,7 +143,7 @@ static func split_wall_at_distance(walls: Array, wall_index: int, split_distance
 			result.append(first)
 			result.append(second)
 		else:
-			result.append((walls[index] as Dictionary).duplicate(true))
+			var untouched: Dictionary = walls[index]\n\t\t\tresult.append(untouched.duplicate(true))
 	return {"ok": true, "walls": result, "new_index": wall_index + 1}
 
 
