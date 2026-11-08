@@ -55,7 +55,8 @@ func _draw() -> void:
 
 	for item_index in range(furniture.size()):
 		var item: Dictionary = furniture[item_index]
-		if not bool(layer_visibility.get("furniture", true)):\n			continue
+		if not bool(layer_visibility.get("furniture", true)):
+			continue
 		var world_pos: Vector2 = item.get("position", Vector2.ZERO)
 		var center := Vector2(size.x * 0.5 + world_pos.x * PIXELS_PER_METRE, size.y * 0.5 + world_pos.y * PIXELS_PER_METRE)
 		var kind := int(item.get("kind", 0))
@@ -82,7 +83,8 @@ func _draw() -> void:
 
 	for i in range(walls.size()):
 		var wall: Dictionary = walls[i]
-		if not bool(layer_visibility.get("walls", true)):\n			continue
+		if not bool(layer_visibility.get("walls", true)):
+			continue
 		var a: Vector2 = wall.get("a", Vector2.ZERO)
 		var b: Vector2 = wall.get("b", Vector2.ZERO)
 		var thickness_mm := float(wall.get("thickness_mm", 150.0))
