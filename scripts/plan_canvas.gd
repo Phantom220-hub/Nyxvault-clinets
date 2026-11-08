@@ -279,6 +279,41 @@ func set_selected_wall_opening(kind: String, width_mm: float, offset_mm: float, 
 	queue_redraw()
 	return true
 
+func apply_selected_wall_settings(length_mm: float, thickness_mm: float, height_mm: float, load_bearing: bool, opening_kind: String, opening_width_mm: float, opening_offset_mm: float, sill_height_mm: float, opening_height_mm: float) -> bool:
+	if selected_wall < 0 or selected_wall >= walls.size() or length_mm < 100.0:
+		return false
+	if opening_kind != "" and opening_kind != "door" and opening_kind != "window":
+		return false
+	var wall: Dictionary = walls[selected_wall].duplicate(true)
+	var a: Vector2 = wall.get("a", Vector2.ZERO)
+	var b: Vector2 = wall.get("b", Vector2.ZERO)
+	var direction := (b - a).normalized()
+	var new_length_px := Units.mm_to_pixels(length_mm)
+	if direction.length() < 0.001:
+		return false
+	_record_history()
+	wall["b"] = a + direction * new_length_px
+	wall["thickness_mm"] = clampf(thickness_mm, 50.0, 1000.0)
+	wall["height_mm"] = clampf(height_mm, 1800.0, 10000.0)
+	wall["load_bearing"] = load_bearing
+	if opening_kind.is_empty():
+		wall["opening"] = ""
+		wall.erase("opening_width_mm")
+		wall.erase("opening_offset_mm")
+		wall.erase("opening_height_mm")
+		wall.erase("sill_height_mm")
+	else:
+		var safe_width := clampf(opening_width_mm, 500.0, maxf(500.0, length_mm - 100.0))
+		wall["opening"] = opening_kind
+		wall["opening_width_mm"] = safe_width
+		wall["opening_offset_mm"] = clampf(opening_offset_mm, safe_width * 0.5, maxf(safe_width * 0.5, length_mm - safe_width * 0.5))
+		wall["opening_height_mm"] = clampf(opening_height_mm, 300.0, 4000.0)
+		wall["sill_height_mm"] = clampf(sill_height_mm, 0.0, 2500.0)
+	walls[selected_wall] = wall
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
 func get_selected_wall() -> Dictionary:
 	if selected_wall < 0 or selected_wall >= walls.size():
 		return {}
