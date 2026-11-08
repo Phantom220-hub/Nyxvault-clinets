@@ -17,13 +17,13 @@ Legend:
 - [x] Store wall thickness and height in millimetres.
 - [x] Store a load-bearing classification flag (classification only, not structural analysis).
 - [~] Display wall thickness in plan.
-- [ ] Robust room/face topology for arbitrary polygons and concave rooms.
+- [~] Bounded-face detection for simple planar wall graphs, including split faces; concave/overlapping/near-coincident topology still needs validation.
 - [ ] Automatic wall junction resolution and T/L/cross junctions.
-- [ ] Move walls while preserving all connected endpoints and room boundaries.
+- [~] Move connected wall components and propagate endpoint moves through shared endpoints; junctions and arbitrary topology still need device/runtime validation.
 - [ ] Split/merge wall segments while preserving openings and metadata.
 - [ ] Exact angle constraints and numeric angle entry.
-- [ ] Dimension strings, extension lines, room dimensions and opening dimensions.
-- [ ] Room labels, room perimeter and reliable area calculation.
+- [~] Toggleable wall dimension strings with extension lines and end ticks; room/opening dimension chains remain.
+- [~] Auto room labels, bounded-face area and perimeter totals; editable room names, net area and complex/concave topology remain.
 - [ ] Wall construction layers and different finish materials on each face.
 - [ ] Drafting layers for walls, doors, windows, furniture, electrical and plumbing.
 - [ ] Copy, mirror, array and alignment tools.
@@ -169,10 +169,10 @@ Legend:
 
 ## 16. Quality, validation and Android delivery
 - [ ] Run Godot headless editor parse/import check.
-- [~] Headless geometry/unit test script added; execution still pending a Godot runtime.
+- [~] Headless geometry/unit tests now cover units, angular snapping, connected wall moves, polygon metrics and bounded faces; latest complete CI run still pending.
 - [ ] Save/load round-trip tests, including old schema versions.
 - [ ] Test touch input, screen scaling, rotation and gesture conflicts.
-- [ ] Test wall intersections, openings, floor joins and camera picking.
+- [~] Automated tests cover basic connected-wall and room-face geometry; wall intersections, openings, floor joins and camera picking still need dedicated tests.
 - [ ] Profile CPU/GPU/RAM on low-end Android hardware.
 - [ ] Validate Android permissions and file import/export.
 - [ ] Build signed/release APK and verify install/launch on target devices.
