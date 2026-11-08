@@ -22,7 +22,7 @@ func _initialize() -> void:
 	assert(moved.a == Vector2(32.0, 64.0))
 	assert(moved.b == Vector2(132.0, 64.0))
 
-	var angled := Geometry.constrain_angle(Vector2.ZERO, Vector2(100.0, 40.0), 15.0)
+	var angled := Geometry.constrain_angle(Vector2.ZERO, Vector2(100.0, 50.0), 15.0)
 	assert(is_equal_approx(rad_to_deg(angled.angle()), 30.0))
 	assert(is_equal_approx(angled.length(), Vector2(100.0, 40.0).length()))
 
