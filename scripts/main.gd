@@ -473,15 +473,7 @@ func _box(parent: Node3D, size_3d: Vector3, pos: Vector3, material: Material) ->
 	return mesh
 
 func _floor_base_y(floor_index: int) -> float:
-	var elevation := 0.0
-	for index in range(mini(floor_index, floors.size())):
-		var floor_data: Dictionary = floors[index]
-		var level_height := maxf(WALL_HEIGHT, float(floor_data.get("floor_height_mm", 2800.0)) / 1000.0)
-		for wall in floor_data.get("walls", []):
-			level_height = maxf(level_height, float(wall.get("height_mm", 2800.0)) / 1000.0)
-		var slab_thickness := clampf(float(floor_data.get("slab_thickness_mm", 220.0)) / 1000.0, 0.08, 1.0)
-		elevation += level_height + slab_thickness
-	return elevation
+	return Units.floor_base_elevation(floors, floor_index, WALL_HEIGHT, 0.22)
 
 func _update_camera() -> void:
 	if not is_instance_valid(view_camera):
