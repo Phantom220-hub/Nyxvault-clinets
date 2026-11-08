@@ -25,6 +25,7 @@ var camera_distance := 17.0
 var camera_projection := Camera3D.PROJECTION_PERSPECTIVE
 var preview_dragging := false
 var preview_last_pos := Vector2.ZERO
+var preview_press_pos := Vector2.ZERO
 var pending_opening := ""
 var floors: Array[Dictionary] = []
 var current_floor := 0
@@ -692,10 +693,14 @@ func _on_preview_input(event: InputEvent) -> void:
 		if event.pressed:
 			preview_dragging = true
 			preview_last_pos = event.position
-			if move_mode_3d:
+			preview_press_pos = event.position
+			if edit_wall_ends_3d:
+				wall_3d_endpoint_pick = _pick_wall_endpoint_3d(_to_viewport_position(event.position))
+				status_label.text = "Выбран конец стены: перетащите его" if not wall_3d_endpoint_pick.is_empty() else "Коснитесь маркера конца стены"
+			elif move_mode_3d:
 				_pick_furniture(_to_viewport_position(event.position))
 		else:
-			var pointer_movement := preview_last_pos.distance_to(event.position)
+			var pointer_movement := preview_press_pos.distance_to(event.position)
 			if edit_wall_ends_3d:
 				if pointer_movement >= 12.0 and not wall_3d_endpoint_pick.is_empty():
 					_move_wall_endpoint_from_3d(_to_viewport_position(event.position))
