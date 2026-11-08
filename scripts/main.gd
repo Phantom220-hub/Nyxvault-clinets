@@ -119,6 +119,10 @@ func _build_interface() -> void:
 	_add_button(tools, "БЕЗ ПРОЁМА", func(): _set_opening(""), false)
 	_add_button(tools, "ПЛОЩАДЬ", _calculate_room_areas, true)
 	_add_button(tools, "+ ЭТАЖ", _add_floor, false)
+	_add_button(tools, "КОПИЯ ЭТАЖА", _duplicate_current_floor, false)
+	_add_button(tools, "ЭТАЖ ↑", func(): _move_current_floor(-1), false)
+	_add_button(tools, "ЭТАЖ ↓", func(): _move_current_floor(1), false)
+	_add_button(tools, "ВИДИМОСТЬ ЭТАЖА", _toggle_current_floor_visibility, false)
 	_add_button(tools, "ЭТАЖ ←", func(): _switch_floor(-1), false)
 	_add_button(tools, "ЭТАЖ →", func(): _switch_floor(1), false)
 	_add_button(tools, "НАСТРОЙКИ ЭТАЖА", _edit_current_floor, false)
@@ -1031,6 +1035,8 @@ func _rebuild_3d() -> void:
 		_box(root, Vector3(24, 0.006, 0.012), Vector3(0, -0.054, i), grid_mat)
 	for floor_index in range(floors.size()):
 		var floor_data: Dictionary = floors[floor_index]
+		if not bool(floor_data.get("visible", true)):
+			continue
 		var base_y := _floor_base_y(floor_index)
 		_box(root, Vector3(24, 0.12, 24), Vector3(0, base_y - 0.12, 0), floor_mat)
 		var floor_walls: Array = floor_data.get("walls", [])
@@ -1163,7 +1169,7 @@ func _snapshot_floor() -> void:
 
 func _add_floor() -> void:
 	_snapshot_floor()
-	floors.append({"name": "Этаж %d" % (floors.size() + 1), "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []})
+	floors.append({"name": "Этаж %d" % (floors.size() + 1), "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "visible": true, "walls": [], "furniture": []})
 	current_floor = floors.size() - 1
 	walls.clear()
 	furniture.clear()
@@ -1175,6 +1181,62 @@ func _add_floor() -> void:
 	if is_3d:
 		_rebuild_3d()
 	status_label.text = "Создан этаж %d из %d" % [current_floor + 1, floors.size()]
+
+func _duplicate_current_floor() -> void:
+	if current_floor < 0 or current_floor >= floors.size():
+		return
+	_snapshot_floor()
+	var copied: Dictionary = floors[current_floor].duplicate(true)
+	copied["name"] = str(copied.get("name", "Этаж")) + " — копия"
+	floors.insert(current_floor + 1, copied)
+	current_floor += 1
+	walls = copied.get("walls", []).duplicate(true)
+	furniture = copied.get("furniture", []).duplicate(true)
+	selected_furniture = -1
+	plan_canvas.walls = walls.duplicate(true)
+	plan_canvas.selected_wall = -1
+	plan_canvas.reset_history()
+	_sync_plan_furniture()
+	plan_canvas.queue_redraw()
+	if is_3d:
+		_rebuild_3d()
+	status_label.text = "Этаж скопирован • %s" % str(copied.get("name", "Этаж"))
+
+
+func _move_current_floor(direction: int) -> void:
+	if floors.size() < 2 or direction == 0:
+		return
+	_snapshot_floor()
+	var target_index := clampi(current_floor + direction, 0, floors.size() - 1)
+	if target_index == current_floor:
+		status_label.text = "Этаж уже на этом месте"
+		return
+	var moving: Dictionary = floors[current_floor]
+	floors.remove_at(current_floor)
+	floors.insert(target_index, moving)
+	current_floor = target_index
+	walls = floors[current_floor].get("walls", []).duplicate(true)
+	furniture = floors[current_floor].get("furniture", []).duplicate(true)
+	selected_furniture = -1
+	plan_canvas.walls = walls.duplicate(true)
+	plan_canvas.selected_wall = -1
+	plan_canvas.reset_history()
+	_sync_plan_furniture()
+	plan_canvas.queue_redraw()
+	if is_3d:
+		_rebuild_3d()
+	status_label.text = "Порядок этажей изменён • %d/%d" % [current_floor + 1, floors.size()]
+
+
+func _toggle_current_floor_visibility() -> void:
+	if current_floor < 0 or current_floor >= floors.size():
+		return
+	var floor_data: Dictionary = floors[current_floor].duplicate(true)
+	floor_data["visible"] = not bool(floor_data.get("visible", true))
+	floors[current_floor] = floor_data
+	status_label.text = "%s • %s в 3D" % [str(floor_data.get("name", "Этаж")), "видим" if floor_data["visible"] else "скрыт"]
+	if is_3d:
+		_rebuild_3d()
 
 func _edit_current_floor() -> void:
 	if current_floor < 0 or current_floor >= floors.size():
@@ -1314,7 +1376,7 @@ func _save_project() -> void:
 		for item in floor.get("furniture", []):
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
-		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "walls": fw, "furniture": ff})
+		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "visible": bool(floor.get("visible", true)), "walls": fw, "furniture": ff})
 	var data := {"version": 6, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}}
 	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
 	if file == null:
@@ -1366,12 +1428,12 @@ func _load_project() -> void:
 			for item in floor_item.get("furniture", []):
 				if item is Dictionary and item.has("position"):
 					ffurniture.append({"kind": int(item.get("kind", 0)), "position": Vector2(float(item.position[0]), float(item.position[1])), "rotation": float(item.get("rotation", 0.0)), "scale": float(item.get("scale", 1.0)), "layer": str(item.get("layer", "furniture"))})
-			floors.append({"name": str(floor_item.get("name", "Этаж %d" % (floors.size() + 1))), "floor_height_mm": float(floor_item.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor_item.get("slab_thickness_mm", 220.0)), "walls": fwalls, "furniture": ffurniture})
+			floors.append({"name": str(floor_item.get("name", "Этаж %d" % (floors.size() + 1))), "floor_height_mm": float(floor_item.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor_item.get("slab_thickness_mm", 220.0)), "visible": bool(floor_item.get("visible", true)), "walls": fwalls, "furniture": ffurniture})
 		current_floor = clampi(int(data.get("current_floor", 0)), 0, floors.size() - 1)
 		walls = floors[current_floor].walls.duplicate(true)
 		furniture = floors[current_floor].furniture.duplicate(true)
 	else:
-		floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
+		floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "visible": true, "walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
 		current_floor = 0
 	plan_canvas.walls = walls.duplicate(true)
 	plan_canvas.reset_history()
