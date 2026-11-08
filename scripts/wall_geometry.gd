@@ -289,7 +289,8 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 	var source_opening := first_opening if not first_opening.is_empty() else second_opening
 	if not source_opening.is_empty():
 		var source_a: Vector2 = source_opening_wall.get("a", Vector2.ZERO)
-		var opening_center_px := source_a + (source_opening_wall.get("b", Vector2.ZERO) - source_a).normalized() * (float(source_opening_wall.get("opening_offset_mm", 0.0)) / 1000.0 * 48.0)
+		var source_b: Vector2 = source_opening_wall.get("b", Vector2.ZERO)
+		var opening_center_px: Vector2 = source_a + (source_b - source_a).normalized() * (float(source_opening_wall.get("opening_offset_mm", 0.0)) / 1000.0 * 48.0)
 		var opening_global_offset_mm := merged_start.distance_to(opening_center_px) * 1000.0 / 48.0
 		merged["opening"] = source_opening
 		merged["opening_offset_mm"] = clampf(opening_global_offset_mm, 0.0, merged_length_px * 1000.0 / 48.0)
