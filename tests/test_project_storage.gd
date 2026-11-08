@@ -4,6 +4,7 @@ const Storage = preload("res://scripts/storage/project_storage.gd")
 
 func _initialize() -> void:
 	_test_schema_migration()
+	_test_stable_generated_ids()
 	_test_round_trip()
 	_test_backup_recovery()
 	_test_invalid_documents()
@@ -26,6 +27,25 @@ func _test_schema_migration() -> void:
 	assert(migrated.data.metadata.format == "dreamhouse3d")
 	assert(migrated.data.floors[0].has("id"))
 	assert(legacy.version == 7)
+
+func _test_stable_generated_ids() -> void:
+	var legacy := {
+		"version": 7,
+		"floors": [{"name": "Ground"}],
+		"walls": [
+			{"a": [0.0, 0.0], "b": [100.0, 0.0]},
+			{"a": [100.0, 0.0], "b": [100.0, 100.0]}
+		],
+		"furniture": []
+	}
+	var first := Storage.migrate_document(legacy)
+	var second := Storage.migrate_document(legacy)
+	assert(first.ok and second.ok)
+	assert(first.data.walls[0].id == "wall_0")
+	assert(first.data.walls[1].id == "wall_1")
+	assert(first.data.floors[0].id == "floor_0")
+	assert(first.data.walls[0].id == second.data.walls[0].id)
+
 
 func _test_round_trip() -> void:
 	var source := {
