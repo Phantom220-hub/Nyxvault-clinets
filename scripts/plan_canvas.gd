@@ -473,6 +473,21 @@ func merge_selected_wall_with_neighbor() -> bool:
 	return true
 
 
+
+func move_wall_endpoint(wall_index: int, endpoint_index: int, target_point: Vector2) -> bool:
+	if wall_index < 0 or wall_index >= walls.size():
+		return false
+	var snapped_target := _snap(target_point)
+	var moved := Geometry.move_connected_endpoint(walls, wall_index, endpoint_index, snapped_target)
+	if moved.is_empty():
+		return false
+	_record_history()
+	walls = moved
+	selected_wall = wall_index
+	walls_changed.emit()
+	queue_redraw()
+	return true
+
 func duplicate_selected_wall(offset_mm: Vector2 = Vector2(250.0, 250.0)) -> bool:
 	if selected_wall < 0 or selected_wall >= walls.size():
 		return false
