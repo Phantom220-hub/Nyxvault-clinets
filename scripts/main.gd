@@ -27,6 +27,7 @@ var floors: Array[Dictionary] = []
 var current_floor := 0
 var move_mode_3d := false
 var material_theme := 0
+var project_dialog: FileDialog
 
 func _ready() -> void:
 	floors = [{"walls": [], "furniture": []}]
@@ -91,6 +92,8 @@ func _build_interface() -> void:
 	_add_button(tools, "ЭТАЖ →", func(): _switch_floor(1), false)
 	_add_button(tools, "MOVE 3D", _toggle_3d_move, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
+	_add_button(tools, "ЭКСПОРТ", _export_project, false)
+	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
 	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4]]:
 		object_menu.add_item(pair[0], pair[1])
@@ -179,6 +182,13 @@ func _add_button(parent: Container, caption: String, callback: Callable, accent:
 	b.pressed.connect(callback)
 	parent.add_child(b)
 
+func _sync_plan_furniture() -> void:
+	if not is_instance_valid(plan_canvas):
+		return
+	plan_canvas.furniture = furniture.duplicate(true)
+	plan_canvas.selected_furniture = selected_furniture
+	plan_canvas.queue_redraw()
+
 func _open_object_menu() -> void:
 	object_menu.position = Vector2i(22, 150)
 	object_menu.popup()
@@ -189,6 +199,7 @@ func _on_object_selected(id: int) -> void:
 	var placement := Vector2(float((index % 3) - 1) * 2.4, float(int(index / 3)) * 2.4)
 	furniture.append({"kind": id, "position": placement, "rotation": 0.0, "scale": 1.0})
 	selected_furniture = furniture.size() - 1
+	_sync_plan_furniture()
 	status_label.text = "Добавлен объект: %s • Всего: %d" % [names[id], furniture.size()]
 	if is_3d:
 		_rebuild_3d()
@@ -233,6 +244,8 @@ func _clear() -> void:
 	plan_canvas.clear_plan()
 	walls.clear()
 	furniture.clear()
+	selected_furniture = -1
+	_sync_plan_furniture()
 	status_label.text = "План очищен"
 	if is_3d:
 		_rebuild_3d()
@@ -312,6 +325,7 @@ func _on_preview_input(event: InputEvent) -> void:
 			var hit: Variant = _screen_to_floor(event.position)
 			if hit is Vector3:
 				furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
+				_sync_plan_furniture()
 				_rebuild_3d()
 		else:
 			camera_yaw -= delta.x * 0.008
@@ -356,6 +370,7 @@ func _pick_furniture(screen_pos: Vector2) -> void:
 			best_index = i
 	if best_index >= 0:
 		selected_furniture = best_index
+		_sync_plan_furniture()
 		status_label.text = "Выбран объект %d из %d" % [best_index + 1, furniture.size()]
 		_rebuild_3d()
 
@@ -364,6 +379,7 @@ func _select_next_furniture() -> void:
 		status_label.text = "Сначала добавьте мебель"
 		return
 	selected_furniture = (selected_furniture + 1) % furniture.size()
+	_sync_plan_furniture()
 	status_label.text = "Выбран объект %d из %d" % [selected_furniture + 1, furniture.size()]
 	if is_3d:
 		_rebuild_3d()
@@ -374,6 +390,7 @@ func _move_selected(offset: Vector2) -> void:
 		return
 	var p: Vector2 = furniture[selected_furniture].get("position", Vector2.ZERO)
 	furniture[selected_furniture]["position"] = p + offset
+	_sync_plan_furniture()
 	status_label.text = "Мебель перемещена"
 	if is_3d:
 		_rebuild_3d()
@@ -383,6 +400,7 @@ func _rotate_selected() -> void:
 		status_label.text = "Сначала выберите мебель"
 		return
 	furniture[selected_furniture]["rotation"] = float(furniture[selected_furniture].get("rotation", 0.0)) + PI / 4.0
+	_sync_plan_furniture()
 	status_label.text = "Поворот: 45°"
 	if is_3d:
 		_rebuild_3d()
@@ -393,6 +411,7 @@ func _scale_selected(factor: float) -> void:
 		return
 	var value := clampf(float(furniture[selected_furniture].get("scale", 1.0)) * factor, 0.5, 1.8)
 	furniture[selected_furniture]["scale"] = value
+	_sync_plan_furniture()
 	status_label.text = "Размер объекта: %.0f%%" % (value * 100.0)
 	if is_3d:
 		_rebuild_3d()
@@ -403,6 +422,7 @@ func _delete_selected() -> void:
 		return
 	furniture.remove_at(selected_furniture)
 	selected_furniture = mini(selected_furniture, furniture.size() - 1)
+	_sync_plan_furniture()
 	status_label.text = "Объект удалён"
 	if is_3d:
 		_rebuild_3d()
@@ -518,6 +538,7 @@ func _add_floor() -> void:
 	walls.clear()
 	furniture.clear()
 	selected_furniture = -1
+	_sync_plan_furniture()
 	plan_canvas.walls.clear()
 	plan_canvas.queue_redraw()
 	if is_3d:
@@ -533,6 +554,7 @@ func _switch_floor(direction: int) -> void:
 	walls = floors[current_floor].get("walls", []).duplicate(true)
 	furniture = floors[current_floor].get("furniture", []).duplicate(true)
 	selected_furniture = -1
+	_sync_plan_furniture()
 	plan_canvas.walls = walls.duplicate(true)
 	plan_canvas.queue_redraw()
 	if is_3d:
@@ -583,6 +605,58 @@ func _find_cycles(current: Vector2, start: Vector2, graph: Dictionary, path: Arr
 			path.append(neighbor)
 			_find_cycles(neighbor, start, graph, path, signatures, cycles)
 			path.pop_back()
+
+
+func _export_project() -> void:
+	_save_project()
+	var dialog := FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.add_filter("*.json", "DreamHouse project")
+	dialog.current_file = "dreamhouse_project.json"
+	dialog.file_selected.connect(_write_export_file)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(820, 620))
+
+func _write_export_file(path: String) -> void:
+	var source := FileAccess.open("user://dreamhouse_project.json", FileAccess.READ)
+	if source == null:
+		status_label.text = "Сначала сохраните проект"
+		return
+	var contents := source.get_as_text()
+	source.close()
+	var target := FileAccess.open(path, FileAccess.WRITE)
+	if target == null:
+		status_label.text = "Не удалось записать файл"
+		return
+	target.store_string(contents)
+	target.close()
+	status_label.text = "Экспортировано: " + path.get_file()
+
+func _import_project() -> void:
+	var dialog := FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.add_filter("*.json", "DreamHouse project")
+	dialog.file_selected.connect(_read_import_file)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(820, 620))
+
+func _read_import_file(path: String) -> void:
+	var source := FileAccess.open(path, FileAccess.READ)
+	if source == null:
+		status_label.text = "Не удалось прочитать файл"
+		return
+	var contents := source.get_as_text()
+	source.close()
+	var target := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
+	if target == null:
+		status_label.text = "Не удалось импортировать проект"
+		return
+	target.store_string(contents)
+	target.close()
+	_load_project()
+	status_label.text = "Импортировано: " + path.get_file()
 
 func _save_project() -> void:
 	var wall_data: Array[Dictionary] = []
@@ -651,6 +725,7 @@ func _load_project() -> void:
 		floors = [{"walls": walls.duplicate(true), "furniture": furniture.duplicate(true)}]
 		current_floor = 0
 	plan_canvas.walls = walls.duplicate(true)
+	_sync_plan_furniture()
 	plan_canvas.queue_redraw()
 	status_label.text = "Загружено • этаж %d/%d • %d стен • %d объектов" % [current_floor + 1, floors.size(), walls.size(), furniture.size()]
 	if is_3d:
