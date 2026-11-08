@@ -141,3 +141,70 @@ static func polygon_perimeter(points: PackedVector2Array) -> float:
 	for index in range(points.size()):
 		total += points[index].distance_to(points[(index + 1) % points.size()])
 	return total
+
+
+static func signed_polygon_area(points: PackedVector2Array) -> float:
+	if points.size() < 3:
+		return 0.0
+	var twice_area := 0.0
+	for index in range(points.size()):
+		var next_index := (index + 1) % points.size()
+		twice_area += points[index].x * points[next_index].y - points[next_index].x * points[index].y
+	return twice_area * 0.5
+
+static func find_bounded_faces(walls: Array, minimum_area_px2: float = 1.0) -> Array[PackedVector2Array]:
+	var graph: Dictionary = {}
+	for wall in walls:
+		if not valid_wall(wall):
+			continue
+		var a: Vector2 = wall.get("a", Vector2.ZERO)
+		var b: Vector2 = wall.get("b", Vector2.ZERO)
+		if not graph.has(a):
+			graph[a] = []
+		if not graph.has(b):
+			graph[b] = []
+		if not graph[a].has(b):
+			graph[a].append(b)
+		if not graph[b].has(a):
+			graph[b].append(a)
+	for vertex in graph.keys():
+		var origin: Vector2 = vertex
+		var neighbors: Array = graph[vertex]
+		neighbors.sort_custom(func(left: Vector2, right: Vector2) -> bool:
+			return atan2(left.y - origin.y, left.x - origin.x) < atan2(right.y - origin.y, right.x - origin.x)
+		)
+		graph[vertex] = neighbors
+	var visited: Dictionary = {}
+	var faces: Array[PackedVector2Array] = []
+	var edge_limit := maxi(8, walls.size() * 4 + 4)
+	for origin_variant in graph.keys():
+		var origin: Vector2 = origin_variant
+		for neighbor_variant in graph[origin]:
+			var first_neighbor: Vector2 = neighbor_variant
+			var first_key := str(origin) + ">" + str(first_neighbor)
+			if visited.has(first_key):
+				continue
+			var polygon := PackedVector2Array()
+			var from_point := origin
+			var to_point := first_neighbor
+			var closed := false
+			for _step in range(edge_limit):
+				var directed_key := str(from_point) + ">" + str(to_point)
+				if visited.has(directed_key):
+					break
+				visited[directed_key] = true
+				polygon.append(from_point)
+				var around: Array = graph.get(to_point, [])
+				var reverse_index := around.find(from_point)
+				if reverse_index < 0 or around.is_empty():
+					break
+				var next_index := posmod(reverse_index - 1, around.size())
+				var next_point: Vector2 = around[next_index]
+				from_point = to_point
+				to_point = next_point
+				if from_point == origin and to_point == first_neighbor:
+					closed = true
+					break
+			if closed and polygon.size() >= 3 and signed_polygon_area(polygon) > minimum_area_px2:
+				faces.append(polygon)
+	return faces
