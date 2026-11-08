@@ -11,6 +11,7 @@ Legend:
 - [~] Draw wall segments with grid snapping.
 - [x] Select a wall by touch/click.
 - [x] Drag a whole wall and drag either endpoint.
+- [x] Snapshot-based wall undo/redo (bounded history per active floor).
 - [x] Snap newly drawn endpoints to existing wall endpoints.
 - [x] Edit wall length in millimetres.
 - [x] Store wall thickness and height in millimetres.
@@ -40,7 +41,7 @@ Legend:
 - [ ] Two-finger camera pan/zoom and one-finger orbit with gesture arbitration.
 - [ ] Perspective/orthographic projection and saved camera bookmarks.
 - [ ] Front/side/top/interior camera presets.
-- [ ] Incremental scene updates; do not rebuild the entire 3D world for every drag event.
+- [~] Furniture drag updates the selected 3D node without rebuilding the full scene; incremental wall/object scene updates remain.
 
 ## 3. Walls, doors and windows
 - [~] Basic wall solids with configurable height/thickness.
@@ -168,7 +169,7 @@ Legend:
 
 ## 16. Quality, validation and Android delivery
 - [ ] Run Godot headless editor parse/import check.
-- [ ] Automated geometry and unit-conversion tests.
+- [~] Headless geometry/unit test script added; execution still pending a Godot runtime.
 - [ ] Save/load round-trip tests, including old schema versions.
 - [ ] Test touch input, screen scaling, rotation and gesture conflicts.
 - [ ] Test wall intersections, openings, floor joins and camera picking.
