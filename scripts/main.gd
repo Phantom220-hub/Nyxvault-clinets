@@ -640,14 +640,19 @@ func _resolve_wall_intersections() -> void:
 
 func _show_layers_dialog() -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "Видимость слоёв чертежа"
+	dialog.title = "Слои чертежа"
+	dialog.min_size = Vector2i(420, 520)
 	var form := VBoxContainer.new()
-	form.add_theme_constant_override("separation", 8)
+	form.add_theme_constant_override("separation", 7)
 	dialog.add_child(form)
 	var checks: Dictionary = {}
 	var entries := [
 		["walls", "Архитектура — стены"],
+		["doors", "Двери и дверные проёмы"],
+		["windows", "Окна и оконные проёмы"],
 		["furniture", "Мебель и оборудование"],
+		["electrical", "Электрика — розетки и выключатели"],
+		["plumbing", "Сантехника и отопление"],
 		["rooms", "Помещения и подписи"],
 		["dimensions", "Размерные линии"]
 	]
@@ -661,12 +666,14 @@ func _show_layers_dialog() -> void:
 	dialog.confirmed.connect(func():
 		for layer_name in checks.keys():
 			plan_canvas.set_layer_visibility(str(layer_name), (checks[layer_name] as CheckButton).button_pressed)
+		_save_project()
 		if is_3d:
 			_rebuild_3d()
-		status_label.text = "Видимость слоёв чертежа обновлена"
+		status_label.text = "Слои чертежа обновлены и сохранены"
 	)
 	add_child(dialog)
 	dialog.popup_centered()
+
 
 func _measure_mode() -> void:
 	_show_plan()
@@ -2469,6 +2476,7 @@ func _load_project() -> void:
 	if saved_layers is Dictionary:
 		for layer_name in plan_canvas.layer_visibility.keys():
 			plan_canvas.layer_visibility[layer_name] = bool(saved_layers.get(layer_name, plan_canvas.layer_visibility[layer_name]))
+		plan_canvas.queue_redraw()
 	roof_style = clampi(int(data.get("roof_style", roof_style)), 0, 1)
 	var site_data: Variant = data.get("site", {})
 	if site_data is Dictionary:
