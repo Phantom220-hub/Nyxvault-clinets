@@ -403,6 +403,15 @@ func _box(parent: Node3D, size_3d: Vector3, pos: Vector3, material: Material) ->
 	parent.add_child(mesh)
 	return mesh
 
+func _floor_base_y(floor_index: int) -> float:
+	var elevation := 0.0
+	for index in range(mini(floor_index, floors.size())):
+		var level_height := WALL_HEIGHT
+		for wall in floors[index].get("walls", []):
+			level_height = maxf(level_height, float(wall.get("height_mm", 2800.0)) / 1000.0)
+		elevation += level_height + 0.22
+	return elevation
+
 func _update_camera() -> void:
 	if not is_instance_valid(view_camera):
 		return
@@ -410,7 +419,9 @@ func _update_camera() -> void:
 	camera_distance = clampf(camera_distance, 5.0, 34.0)
 	var horizontal := camera_distance * cos(camera_pitch)
 	view_camera.position = Vector3(sin(camera_yaw) * horizontal, -sin(camera_pitch) * camera_distance, cos(camera_yaw) * horizontal)
-	var building_center_y := maxf(0.0, float(floors.size() - 1) * 1.6)
+	var building_center_y := 1.4
+	if floors.size() > 1:
+		building_center_y = (_floor_base_y(floors.size() - 1) + WALL_HEIGHT) * 0.5
 	view_camera.look_at(Vector3(0.0, building_center_y, 0.0), Vector3.UP)
 
 func _on_preview_input(event: InputEvent) -> void:
@@ -432,7 +443,7 @@ func _on_preview_input(event: InputEvent) -> void:
 			if hit is Vector3:
 				furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
 				_sync_plan_furniture()
-				_rebuild_3d()
+				_update_dragged_furniture_node()
 		else:
 			camera_yaw -= delta.x * 0.008
 			camera_pitch -= delta.y * 0.006
@@ -453,7 +464,7 @@ func _to_viewport_position(container_pos: Vector2) -> Vector2:
 func _screen_to_floor(screen_pos: Vector2) -> Variant:
 	var origin := view_camera.project_ray_origin(screen_pos)
 	var direction := view_camera.project_ray_normal(screen_pos)
-	var floor_y := float(current_floor) * (WALL_HEIGHT + 0.22)
+	var floor_y := _floor_base_y(current_floor)
 	return Plane(Vector3.UP, floor_y).intersects_ray(origin, direction)
 
 func _toggle_3d_move() -> void:
@@ -563,7 +574,7 @@ func _rebuild_3d() -> void:
 		_box(root, Vector3(24, 0.006, 0.012), Vector3(0, -0.054, i), grid_mat)
 	for floor_index in range(floors.size()):
 		var floor_data: Dictionary = floors[floor_index]
-		var base_y := float(floor_index) * (WALL_HEIGHT + 0.22)
+		var base_y := _floor_base_y(floor_index)
 		_box(root, Vector3(24, 0.12, 24), Vector3(0, base_y - 0.12, 0), floor_mat)
 		for wall in floor_data.get("walls", []):
 			var a: Vector2 = wall.a
@@ -585,14 +596,14 @@ func _rebuild_3d() -> void:
 					var side_wall := _box(root, Vector3(side_length, wall_height, wall_thickness), side_center, wall_mat)
 					side_wall.rotation.y = -angle
 				if opening == "door":
-					var lintel := _box(root, Vector3(gap, maxf(wall_height - 2.05, 0.05), wall_thickness), center + Vector3(0, 2.05 + maxf(wall_height - 2.05, 0.05) * 0.5, 0), wall_mat)
+					var lintel := _box(root, Vector3(gap, maxf(wall_height - 2.05, 0.05), wall_thickness), Vector3(center.x, base_y + 2.05 + maxf(wall_height - 2.05, 0.05) * 0.5, center.z), wall_mat)
 					lintel.rotation.y = -angle
 				else:
-					var sill := _box(root, Vector3(gap, 0.85, wall_thickness), center + Vector3(0, 0.425, 0), wall_mat)
-					var header := _box(root, Vector3(gap, maxf(wall_height - 2.1, 0.1), wall_thickness), center + Vector3(0, 2.1 + maxf(wall_height - 2.1, 0.1) * 0.5, 0), wall_mat)
+					var sill := _box(root, Vector3(gap, 0.85, wall_thickness), Vector3(center.x, base_y + 0.425, center.z), wall_mat)
+					var header := _box(root, Vector3(gap, maxf(wall_height - 2.1, 0.1), wall_thickness), Vector3(center.x, base_y + 2.1 + maxf(wall_height - 2.1, 0.1) * 0.5, center.z), wall_mat)
 					sill.rotation.y = -angle
 					header.rotation.y = -angle
-					var pane := _box(root, Vector3(gap * 0.94, maxf(wall_height - 1.0, 0.2), 0.035), center + Vector3(0, wall_height * 0.5, 0), glass)
+					var pane := _box(root, Vector3(gap * 0.94, maxf(wall_height - 1.0, 0.2), 0.035), Vector3(center.x, base_y + wall_height * 0.5, center.z), glass)
 					pane.rotation.y = -angle
 			else:
 				var segment := _box(root, Vector3(maxf(length, 0.12), wall_height, wall_thickness), center, wall_mat)
@@ -601,21 +612,36 @@ func _rebuild_3d() -> void:
 			skirting.rotation.y = -angle
 			var crown := _box(root, Vector3(maxf(length, 0.12), 0.07, wall_thickness + 0.03), Vector3(center.x, base_y + wall_height - 0.035, center.z), trim_mat)
 			crown.rotation.y = -angle
-		for item in floor_data.get("furniture", []):
-			_add_furniture(root, item, base_y)
+		var floor_furniture: Array = floor_data.get("furniture", [])
+		for furniture_index in range(floor_furniture.size()):
+			_add_furniture(root, floor_furniture[furniture_index], base_y, floor_index, furniture_index)
 	_update_camera()
 	if floors.size() > 1:
 		status_label.text = "3D • показаны все этажи: %d" % floors.size()
 
-func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0) -> void:
+func _update_dragged_furniture_node() -> void:
+	if selected_furniture < 0 or selected_furniture >= furniture.size():
+		return
+	var target_name := "Furniture_%d_%d" % [current_floor, selected_furniture]
+	for generated_root in preview_world.get_children():
+		if not generated_root.is_in_group("generated"):
+			continue
+		for node in generated_root.get_children():
+			if node is Node3D and node.name == target_name:
+				var position_2d: Vector2 = furniture[selected_furniture].get("position", Vector2.ZERO)
+				node.position = Vector3(position_2d.x, _floor_base_y(current_floor), position_2d.y)
+				return
+
+func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0, floor_index: int = 0, item_index: int = 0) -> void:
 	var kind := int(item.get("kind", 0))
 	var p: Vector2 = item.get("position", Vector2.ZERO)
 	var group := Node3D.new()
+	group.name = "Furniture_%d_%d" % [floor_index, item_index]
 	group.position = Vector3(p.x, floor_y, p.y)
 	group.rotation.y = float(item.get("rotation", 0.0))
 	group.scale = Vector3.ONE * float(item.get("scale", 1.0))
 	root.add_child(group)
-	if furniture.find(item) == selected_furniture:
+	if floor_index == current_floor and item_index == selected_furniture:
 		var marker_mat := _mat(Color("#52D6C7", 0.22), 0.3)
 		var marker_mesh := _box(group, Vector3(2.5, 0.035, 2.5), Vector3(0, 0.025, 0), marker_mat)
 		marker_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
