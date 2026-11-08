@@ -203,10 +203,11 @@ static func _migrate_v7_to_v8(data: Dictionary) -> void:
 		if not data.has(field):
 			data[field] = []
 	if data.has("walls") and data.walls is Array:
-		for wall_variant in data.walls:
+		for wall_index in range(data.walls.size()):
+			var wall_variant: Variant = data.walls[wall_index]
 			if wall_variant is Dictionary:
 				if not wall_variant.has("id"):
-					wall_variant["id"] = "wall_%d" % wall_variant.hash()
+					wall_variant["id"] = "wall_%d" % wall_index
 				if not wall_variant.has("locked"):
 					wall_variant["locked"] = false
 				if not wall_variant.has("visible"):
@@ -214,10 +215,11 @@ static func _migrate_v7_to_v8(data: Dictionary) -> void:
 				if not wall_variant.has("layer_id"):
 					wall_variant["layer_id"] = str(wall_variant.get("layer", "walls"))
 	if data.has("floors") and data.floors is Array:
-		for floor_variant in data.floors:
+		for floor_index in range(data.floors.size()):
+			var floor_variant: Variant = data.floors[floor_index]
 			if floor_variant is Dictionary:
 				if not floor_variant.has("id"):
-					floor_variant["id"] = "floor_%d" % floor_variant.hash()
+					floor_variant["id"] = "floor_%d" % floor_index
 				if not floor_variant.has("roofs"):
 					floor_variant["roofs"] = []
 				if not floor_variant.has("stairs"):
