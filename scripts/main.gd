@@ -26,6 +26,9 @@ var camera_projection := Camera3D.PROJECTION_PERSPECTIVE
 var preview_dragging := false
 var preview_last_pos := Vector2.ZERO
 var preview_press_pos := Vector2.ZERO
+var preview_touches: Dictionary = {}
+var preview_pinch_distance := 0.0
+var camera_target_offset := Vector2.ZERO
 var pending_opening := ""
 var floors: Array[Dictionary] = []
 var current_floor := 0
@@ -300,6 +303,7 @@ func _build_interface() -> void:
 	_add_button(tools, "БЕЗ ПРОЁМА", func(): _set_opening(""), false)
 	_add_button(tools, "ПЛОЩАДЬ", _calculate_room_areas, true)
 	_add_button(tools, "СВОДКА ЗДАНИЯ", _show_building_measurements, true)
+	_add_button(tools, "СМЕТА", _show_cost_estimate, true)
 	_add_button(tools, "+ ЭТАЖ", _add_floor, false)
 	_add_button(tools, "КОПИЯ ЭТАЖА", _duplicate_current_floor, false)
 	_add_button(tools, "ЭТАЖ ↑", func(): _move_current_floor(-1), false)
@@ -346,7 +350,7 @@ func _build_interface() -> void:
 	preview.gui_input.connect(_on_preview_input)
 	add_child(preview)
 	var viewport := SubViewport.new()
-	viewport.size = Vector2i(900, 1400)
+	viewport.size = Vector2i(1600, 900)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport.msaa_3d = Viewport.MSAA_2X
 	preview.add_child(viewport)
@@ -855,7 +859,7 @@ func _update_camera() -> void:
 	var building_center_y := 1.4
 	if floors.size() > 1:
 		building_center_y = (_floor_base_y(floors.size() - 1) + WALL_HEIGHT) * 0.5
-	view_camera.look_at(Vector3(0.0, building_center_y, 0.0), Vector3.UP)
+	view_camera.look_at(Vector3(camera_target_offset.x, building_center_y, camera_target_offset.y), Vector3.UP)
 	if camera_projection == Camera3D.PROJECTION_ORTHOGONAL:
 		view_camera.size = camera_distance
 
@@ -888,7 +892,66 @@ func _toggle_camera_projection() -> void:
 	status_label.text = "Проекция: " + ("ортографическая" if camera_projection == Camera3D.PROJECTION_ORTHOGONAL else "перспективная")
 
 func _on_preview_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT):
+	if event is InputEventScreenTouch:
+		var touch_id := event.index
+		if event.pressed:
+			preview_touches[touch_id] = event.position
+			if preview_touches.size() == 2:
+				var touch_points: Array = preview_touches.values()
+				preview_pinch_distance = (touch_points[0] as Vector2).distance_to(touch_points[1] as Vector2)
+				preview_dragging = false
+				return
+			if preview_touches.size() > 2:
+				return
+			preview_dragging = true
+			preview_last_pos = event.position
+			preview_press_pos = event.position
+			if edit_wall_ends_3d:
+				wall_3d_endpoint_pick = _pick_wall_endpoint_3d(_to_viewport_position(event.position))
+				status_label.text = "Выбран конец стены: перетащите его" if not wall_3d_endpoint_pick.is_empty() else "Коснитесь маркера конца стены"
+			elif move_mode_3d:
+				_pick_furniture(_to_viewport_position(event.position))
+		else:
+			preview_touches.erase(touch_id)
+			preview_pinch_distance = 0.0
+			preview_dragging = false
+		return
+	if event is InputEventScreenDrag:
+		if preview_touches.has(event.index):
+			preview_touches[event.index] = event.position
+		if preview_touches.size() >= 2:
+			var points: Array = preview_touches.values()
+			var distance_now := (points[0] as Vector2).distance_to(points[1] as Vector2)
+			if preview_pinch_distance > 1.0:
+				camera_distance *= preview_pinch_distance / maxf(distance_now, 1.0)
+				_update_camera()
+			preview_pinch_distance = distance_now
+			return
+		elif preview_touches.size() > 1:
+			return
+		elif preview_dragging:
+			var delta: Vector2 = event.position - preview_last_pos
+			preview_last_pos = event.position
+			if edit_wall_ends_3d:
+				if not wall_3d_endpoint_pick.is_empty():
+					status_label.text = "Перемещайте выбранный конец стены в плоскости этажа"
+			elif draw_walls_3d:
+				var hit: Variant = _screen_to_floor(_to_viewport_position(event.position))
+				if hit is Vector3 and wall_3d_has_start:
+					var plan_point := _world_to_plan_point(hit)
+					status_label.text = "3D-стена • длина %.0f mm • отпустите и коснитесь конечной точки" % Units.pixels_to_mm(wall_3d_start_point.distance_to(plan_point))
+			elif move_mode_3d and selected_furniture >= 0:
+				var hit: Variant = _screen_to_floor(_to_viewport_position(event.position))
+				if hit is Vector3:
+					furniture[selected_furniture]["position"] = Vector2(hit.x, hit.z)
+					_sync_plan_furniture()
+					_update_dragged_furniture_node()
+			else:
+				camera_yaw -= delta.x * 0.008
+				camera_pitch -= delta.y * 0.006
+				_update_camera()
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			preview_dragging = true
 			preview_last_pos = event.position
@@ -1479,6 +1542,74 @@ func _switch_floor(direction: int) -> void:
 	if is_3d:
 		_rebuild_3d()
 	status_label.text = "Этаж %d из %d" % [current_floor + 1, floors.size()]
+
+func _show_cost_estimate() -> void:
+	var total_floor_area := 0.0
+	var total_wall_area := 0.0
+	var doors := 0
+	var windows := 0
+	for floor_data in floors:
+		var floor_walls: Array = floor_data.get("walls", [])
+		var faces := Geometry.find_bounded_faces(floor_walls)
+		for face in faces:
+			total_floor_area += Geometry.polygon_area(face) / (PPM * PPM)
+		total_wall_area += Units.wall_net_area_m2(floor_walls)
+		for wall in floor_walls:
+			if str(wall.get("opening", "")) == "door":
+				doors += 1
+			elif str(wall.get("opening", "")) == "window":
+				windows += 1
+
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Предварительная смета — цены в TJS"
+	dialog.min_size = Vector2i(460, 500)
+	var form := VBoxContainer.new()
+	form.add_theme_constant_override("separation", 9)
+	dialog.add_child(form)
+	var note := Label.new()
+	note.text = "Введите цены. Это ориентировочная оценка, не строительная смета."
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	form.add_child(note)
+	var wall_price := _estimate_spin(form, "Отделка стен, TJS/м²", 0, 100000, 25)
+	var floor_price := _estimate_spin(form, "Покрытие пола, TJS/м²", 0, 100000, 35)
+	var door_price := _estimate_spin(form, "Дверь, TJS/шт.", 0, 100000, 500)
+	var window_price := _estimate_spin(form, "Окно, TJS/шт.", 0, 100000, 650)
+	var waste := _estimate_spin(form, "Запас материала, %", 0, 50, 10)
+	dialog.confirmed.connect(func():
+		var wall_cost := total_wall_area * wall_price.value * (1.0 + waste.value / 100.0)
+		var floor_cost := total_floor_area * floor_price.value * (1.0 + waste.value / 100.0)
+		var doors_cost := float(doors) * door_price.value
+		var windows_cost := float(windows) * window_price.value
+		var total := wall_cost + floor_cost + doors_cost + windows_cost
+		var report := "ПРЕДВАРИТЕЛЬНАЯ СМЕТА\n\nПлощадь стен (с вычетом проёмов): %.2f м²\nПлощадь полов по замкнутым помещениям: %.2f м²\nДвери: %d • окна: %d\nЗапас: %.1f%%\n\nСтены: %.2f TJS\nПолы: %.2f TJS\nДвери: %.2f TJS\nОкна: %.2f TJS\n\nИТОГО: %.2f TJS\n\nНе включены: фундамент, перекрытия, крыша, инженерные системы, доставка и работа." % [total_wall_area, total_floor_area, doors, windows, waste.value, wall_cost, floor_cost, doors_cost, windows_cost, total]
+		var result := AcceptDialog.new()
+		result.title = "Результат расчёта"
+		result.dialog_text = report
+		result.min_size = Vector2i(520, 460)
+		add_child(result)
+		result.popup_centered()
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+
+func _estimate_spin(parent: VBoxContainer, caption: String, minimum: float, maximum: float, initial: float) -> SpinBox:
+	var row := HBoxContainer.new()
+	parent.add_child(row)
+	var label := Label.new()
+	label.text = caption
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", 11)
+	row.add_child(label)
+	var spin := SpinBox.new()
+	spin.min_value = minimum
+	spin.max_value = maximum
+	spin.step = 1.0
+	spin.value = initial
+	spin.custom_minimum_size.x = 112
+	row.add_child(spin)
+	return spin
+
 
 func _calculate_room_areas() -> void:
 	var faces := Geometry.find_bounded_faces(walls)
