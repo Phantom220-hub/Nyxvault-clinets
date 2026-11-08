@@ -66,3 +66,78 @@ static func constrain_angle(origin: Vector2, point: Vector2, increment_degrees: 
 	var increment := deg_to_rad(increment_degrees)
 	var angle := roundf(delta.angle() / increment) * increment
 	return origin + Vector2.from_angle(angle) * delta.length()
+
+
+static func connected_component_indices(walls: Array, root_index: int, tolerance: float = JOIN_TOLERANCE_PX) -> Array[int]:
+	var result: Array[int] = []
+	if root_index < 0 or root_index >= walls.size():
+		return result
+	var visited: Dictionary = {root_index: true}
+	var queue: Array[int] = [root_index]
+	while not queue.is_empty():
+		var current: int = queue.pop_front()
+		result.append(current)
+		var current_wall: Dictionary = walls[current]
+		for candidate in range(walls.size()):
+			if visited.has(candidate):
+				continue
+			var other: Dictionary = walls[candidate]
+			var touches := false
+			for endpoint_a in [current_wall.get("a", Vector2.ZERO), current_wall.get("b", Vector2.ZERO)]:
+				for endpoint_b in [other.get("a", Vector2.ZERO), other.get("b", Vector2.ZERO)]:
+					if endpoint_a.distance_to(endpoint_b) <= tolerance:
+						touches = true
+			if touches:
+				visited[candidate] = true
+				queue.append(candidate)
+	return result
+
+static func translated_connected_component(walls: Array, root_index: int, offset: Vector2, tolerance: float = JOIN_TOLERANCE_PX) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for wall in walls:
+		result.append(wall.duplicate(true))
+	for index in connected_component_indices(walls, root_index, tolerance):
+		result[index] = translated(walls[index], offset)
+	return result
+
+static func move_connected_endpoint(walls: Array, wall_index: int, endpoint_index: int, new_point: Vector2, tolerance: float = JOIN_TOLERANCE_PX) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for wall in walls:
+		result.append(wall.duplicate(true))
+	if wall_index < 0 or wall_index >= walls.size() or (endpoint_index != 0 and endpoint_index != 1):
+		return result
+	var source: Dictionary = walls[wall_index]
+	var old_point: Vector2 = source.get("a", Vector2.ZERO) if endpoint_index == 0 else source.get("b", Vector2.ZERO)
+	var selected := source.duplicate(true)
+	selected["a" if endpoint_index == 0 else "b"] = new_point
+	result[wall_index] = selected
+	for index in range(walls.size()):
+		if index == wall_index:
+			continue
+		var candidate: Dictionary = result[index].duplicate(true)
+		for key in ["a", "b"]:
+			var endpoint: Vector2 = candidate.get(key, Vector2.ZERO)
+			if endpoint.distance_to(old_point) <= tolerance:
+				candidate[key] = new_point
+		result[index] = candidate
+	for wall in result:
+		if not valid_wall(wall):
+			return []
+	return result
+
+static func polygon_area(points: PackedVector2Array) -> float:
+	if points.size() < 3:
+		return 0.0
+	var twice_area := 0.0
+	for index in range(points.size()):
+		var next_index := (index + 1) % points.size()
+		twice_area += points[index].x * points[next_index].y - points[next_index].x * points[index].y
+	return absf(twice_area) * 0.5
+
+static func polygon_perimeter(points: PackedVector2Array) -> float:
+	if points.size() < 2:
+		return 0.0
+	var total := 0.0
+	for index in range(points.size()):
+		total += points[index].distance_to(points[(index + 1) % points.size()])
+	return total
