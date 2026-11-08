@@ -383,7 +383,7 @@ func _build_interface() -> void:
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
-	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4]]:
+	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4], ["Кухонная тумба", 5], ["Холодильник", 6], ["Унитаз", 7], ["Ванна", 8], ["Раковина", 9], ["Растение", 10], ["Торшер", 11]]:
 		object_menu.add_item(pair[0], pair[1])
 	object_menu.id_pressed.connect(_on_object_selected)
 	add_child(object_menu)
@@ -485,7 +485,7 @@ func _open_object_menu() -> void:
 	object_menu.popup()
 
 func _on_object_selected(id: int) -> void:
-	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф"]
+	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф", "Кухонная тумба", "Холодильник", "Унитаз", "Ванна", "Раковина", "Растение", "Торшер"]
 	var index := furniture.size()
 	var placement := Vector2(float((index % 3) - 1) * 2.4, float(int(index / 3)) * 2.4)
 	furniture.append({"kind": id, "position": placement, "rotation": 0.0, "scale": 1.0, "layer": "furniture"})
@@ -1493,6 +1493,67 @@ func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0, floor_
 		4:
 			_box(group, Vector3(1.25, 2.1, 0.65), c + Vector3(0, 1.05, 0), wood)
 			_box(group, Vector3(0.025, 1.9, 0.02), c + Vector3(0, 1.05, 0.34), metal)
+		5:
+			_box(group, Vector3(1.8, 0.9, 0.65), c + Vector3(0, 0.45, 0), wood)
+			_box(group, Vector3(1.9, 0.08, 0.72), c + Vector3(0, 0.94, 0), soft)
+		6:
+			_box(group, Vector3(0.85, 2.0, 0.8), c + Vector3(0, 1.0, 0), soft)
+			_box(group, Vector3(0.7, 0.025, 0.025), c + Vector3(0, 1.3, 0.41), metal)
+		7:
+			_box(group, Vector3(0.55, 0.35, 0.72), c + Vector3(0, 0.28, 0), soft)
+			var toilet_bowl := MeshInstance3D.new()
+			var bowl_mesh := CylinderMesh.new()
+			bowl_mesh.top_radius = 0.25
+			bowl_mesh.bottom_radius = 0.31
+			bowl_mesh.height = 0.32
+			toilet_bowl.mesh = bowl_mesh
+			toilet_bowl.position = Vector3(0, 0.55, 0.08)
+			toilet_bowl.material_override = soft
+			group.add_child(toilet_bowl)
+			_box(group, Vector3(0.52, 0.55, 0.12), c + Vector3(0, 0.8, -0.28), soft)
+		8:
+			_box(group, Vector3(1.7, 0.55, 0.8), c + Vector3(0, 0.35, 0), soft)
+			_box(group, Vector3(1.52, 0.08, 0.62), c + Vector3(0, 0.66, 0), glass)
+		9:
+			_box(group, Vector3(0.9, 0.78, 0.55), c + Vector3(0, 0.39, 0), wood)
+			_box(group, Vector3(0.95, 0.12, 0.62), c + Vector3(0, 0.84, 0), soft)
+			var basin := MeshInstance3D.new()
+			var basin_mesh := SphereMesh.new()
+			basin_mesh.radius = 0.22
+			basin_mesh.height = 0.12
+			basin.mesh = basin_mesh
+			basin.position = Vector3(0, 0.93, 0)
+			basin.material_override = soft
+			group.add_child(basin)
+		10:
+			var pot := MeshInstance3D.new()
+			var pot_mesh := CylinderMesh.new()
+			pot_mesh.top_radius = 0.22
+			pot_mesh.bottom_radius = 0.16
+			pot_mesh.height = 0.38
+			pot.mesh = pot_mesh
+			pot.position = Vector3(0, 0.19, 0)
+			pot.material_override = wood
+			group.add_child(pot)
+			for leaf_offset in [Vector3(0, 0.9, 0), Vector3(0.25, 0.72, 0), Vector3(-0.25, 0.72, 0), Vector3(0, 0.72, 0.25), Vector3(0, 0.72, -0.25)]:
+				var leaf := MeshInstance3D.new()
+				var leaf_mesh := SphereMesh.new()
+				leaf_mesh.radius = 0.28
+				leaf_mesh.height = 0.55
+				leaf.mesh = leaf_mesh
+				leaf.position = leaf_offset
+				leaf.material_override = _mat(Color("#4D8B62"), 0.9)
+				group.add_child(leaf)
+		11:
+			_box(group, Vector3(0.08, 1.65, 0.08), c + Vector3(0, 0.82, 0), metal)
+			var lamp_shade := MeshInstance3D.new()
+			var shade_mesh := SphereMesh.new()
+			shade_mesh.radius = 0.32
+			shade_mesh.height = 0.45
+			lamp_shade.mesh = shade_mesh
+			lamp_shade.position = Vector3(0, 1.65, 0)
+			lamp_shade.material_override = _mat(Color("#F2D79B"), 0.35)
+			group.add_child(lamp_shade)
 
 
 func _snapshot_floor() -> void:
