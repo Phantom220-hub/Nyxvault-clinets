@@ -898,7 +898,9 @@ func _on_preview_input(event: InputEvent) -> void:
 			preview_touches[touch_id] = event.position
 			if preview_touches.size() == 2:
 				var touch_points: Array = preview_touches.values()
-				preview_pinch_distance = (touch_points[0] as Vector2).distance_to(touch_points[1] as Vector2)
+				var first_touch: Vector2 = touch_points[0]
+				var second_touch: Vector2 = touch_points[1]
+				preview_pinch_distance = first_touch.distance_to(second_touch)
 				preview_dragging = false
 				return
 			if preview_touches.size() > 2:
@@ -912,6 +914,21 @@ func _on_preview_input(event: InputEvent) -> void:
 			elif move_mode_3d:
 				_pick_furniture(_to_viewport_position(event.position))
 		else:
+			var pointer_movement := preview_press_pos.distance_to(event.position)
+			if preview_touches.size() == 1:
+				if edit_wall_ends_3d:
+					if pointer_movement >= 12.0 and not wall_3d_endpoint_pick.is_empty():
+						_move_wall_endpoint_from_3d(_to_viewport_position(event.position))
+					elif wall_3d_endpoint_pick.is_empty():
+						status_label.text = "Коснитесь маркера конца стены"
+					wall_3d_endpoint_pick.clear()
+				elif pointer_movement < 12.0:
+					if draw_walls_3d:
+						_handle_3d_wall_tap(_to_viewport_position(event.position))
+					elif select_walls_3d:
+						_pick_wall_3d(_to_viewport_position(event.position))
+					elif not move_mode_3d:
+						_pick_furniture(_to_viewport_position(event.position))
 			preview_touches.erase(touch_id)
 			preview_pinch_distance = 0.0
 			preview_dragging = false
@@ -921,7 +938,9 @@ func _on_preview_input(event: InputEvent) -> void:
 			preview_touches[event.index] = event.position
 		if preview_touches.size() >= 2:
 			var points: Array = preview_touches.values()
-			var distance_now := (points[0] as Vector2).distance_to(points[1] as Vector2)
+			var first_point: Vector2 = points[0]
+			var second_point: Vector2 = points[1]
+			var distance_now := first_point.distance_to(second_point)
 			if preview_pinch_distance > 1.0:
 				camera_distance *= preview_pinch_distance / maxf(distance_now, 1.0)
 				_update_camera()
