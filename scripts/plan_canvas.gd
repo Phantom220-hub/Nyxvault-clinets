@@ -193,9 +193,9 @@ func _pointer_drag(point: Vector2) -> void:
 			if i == selected_wall:
 				continue
 			var connected: Dictionary = walls[i].duplicate(true)
-			if (connected.a as Vector2).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
+			if Vector2(connected.get("a", Vector2.ZERO)).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
 				connected.a = new_point
-			if (connected.b as Vector2).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
+			if Vector2(connected.get("b", Vector2.ZERO)).distance_to(old_point) <= Geometry.JOIN_TOLERANCE_PX:
 				connected.b = new_point
 			walls[i] = connected
 	else:
