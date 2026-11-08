@@ -280,7 +280,7 @@ static func merge_collinear_walls(walls: Array, wall_index: int, tolerance_px: f
 	var merged := first.duplicate(true)
 	var merged_start := first_far
 	var merged_end := second_far
-		var merged_length_px := merged_start.distance_to(merged_end)
+	var merged_length_px := merged_start.distance_to(merged_end)
 	if merged_length_px < MIN_WALL_LENGTH_PX:
 		return {"ok": false, "error": "merged_wall_invalid"}
 	merged["a"] = merged_start
