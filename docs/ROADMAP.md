@@ -25,7 +25,7 @@ Legend:
 - [~] Toggleable wall dimension strings with extension lines and end ticks; room/opening dimension chains remain.
 - [~] Auto room labels, bounded-face area and perimeter totals; editable room names, net area and complex/concave topology remain.
 - [ ] Wall construction layers and different finish materials on each face.
-- [ ] Drafting layers for walls, doors, windows, furniture, electrical and plumbing.
+- [~] Independent visibility filters for walls, door openings, window openings, furniture, electrical objects, plumbing/heating objects, room labels and dimensions; user-defined layer creation, per-object layer assignment and layer locking remain.
 - [~] Copy, vertical-axis mirror and normal-direction array for selected wall; multi-object transforms, alignment and snapping remain.
 - [~] Undo/redo covers wall creation, splitting, merging, copy, mirror, array and network noding; furniture and all project entity operations remain.
 
