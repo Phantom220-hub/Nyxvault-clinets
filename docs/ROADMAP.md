@@ -33,8 +33,8 @@ Legend:
 - [~] 3D scene generation from current 2D walls.
 - [~] Orbit camera and mouse-wheel zoom.
 - [~] Furniture selection and direct floor-plane movement.
-- [ ] Ray-based wall/object picking with stable selection highlighting.
-- [ ] Create, move, resize and delete walls directly in 3D.
+- [~] 3D wall selection by projected wall midpoint with selection highlight; full ray/mesh picking remains.
+- [~] Open the wall property/opening inspector from a wall selected in 3D; direct 3D wall creation, dragging and endpoint editing remain.
 - [ ] Numeric X/Y/Z position and dimension inspector.
 - [ ] Direct furniture rotate/scale gestures.
 - [ ] Multi-select, group/ungroup, duplicate and lock.
