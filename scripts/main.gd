@@ -2,6 +2,7 @@ extends Control
 const PlanCanvasScript = preload("res://scripts/plan_canvas.gd")
 const Units = preload("res://scripts/building_units.gd")
 const Geometry = preload("res://scripts/wall_geometry.gd")
+const ProjectStorage = preload("res://scripts/storage/project_storage.gd")
 const WALL_HEIGHT := 2.8
 const PPM := 48.0
 const BG := Color("#101923")
@@ -2415,12 +2416,14 @@ func _read_import_file(path: String) -> void:
 		return
 	var contents := source.get_as_text()
 	source.close()
-	var target := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
-	if target == null:
-		status_label.text = "Не удалось импортировать проект"
+	var decoded := ProjectStorage.decode_document(contents)
+	if not bool(decoded.get("ok", false)):
+		status_label.text = "Импорт отменён: некорректный проект (%s)" % str(decoded.get("error", "unknown"))
 		return
-	target.store_string(contents)
-	target.close()
+	var import_result := ProjectStorage.write_json_atomic("user://dreamhouse_project.json", decoded.data)
+	if not bool(import_result.get("ok", false)):
+		status_label.text = "Не удалось сохранить импорт: %s" % str(import_result.get("error", "unknown"))
+		return
 	_load_project()
 	status_label.text = "Импортировано: " + path.get_file()
 
@@ -2443,15 +2446,11 @@ func _save_project() -> void:
 			var fp: Vector2 = item.get("position", Vector2.ZERO)
 			ff.append({"kind": item.get("kind", 0), "position": [fp.x, fp.y], "rotation": item.get("rotation", 0.0), "scale": item.get("scale", 1.0), "layer": item.get("layer", "furniture")})
 		floor_data.append({"name": str(floor.get("name", "Этаж")), "floor_height_mm": float(floor.get("floor_height_mm", 2800.0)), "slab_thickness_mm": float(floor.get("slab_thickness_mm", 220.0)), "visible": bool(floor.get("visible", true)), "walls": fw, "furniture": ff})
-	var data := {"version": 7, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}, "roof_style": roof_style, "site": {"enabled": site_enabled, "width_m": site_width_m, "depth_m": site_depth_m}}
-	if FileAccess.file_exists("user://dreamhouse_project.json"):
-		_copy_user_file("user://dreamhouse_project.json", "user://dreamhouse_project_previous.json")
-	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.WRITE)
-	if file == null:
-		status_label.text = "Ошибка сохранения"
+	var data := {"version": ProjectStorage.CURRENT_SCHEMA_VERSION, "current_floor": current_floor, "floors": floor_data, "walls": wall_data, "furniture": furniture_data, "layers": plan_canvas.layer_visibility.duplicate(true), "camera": {"yaw": camera_yaw, "pitch": camera_pitch, "distance": camera_distance, "projection": camera_projection}, "roof_style": roof_style, "site": {"enabled": site_enabled, "width_m": site_width_m, "depth_m": site_depth_m}}
+	var save_result := ProjectStorage.write_json_atomic("user://dreamhouse_project.json", data)
+	if not bool(save_result.get("ok", false)):
+		status_label.text = "Ошибка сохранения проекта: %s" % str(save_result.get("error", "unknown"))
 		return
-	file.store_string(JSON.stringify(data, "\t"))
-	file.close()
 	if not current_project_name.is_empty():
 		var named_path := _named_project_path(current_project_name)
 		if FileAccess.file_exists(named_path):
@@ -2463,15 +2462,13 @@ func _load_project() -> void:
 	if not FileAccess.file_exists("user://dreamhouse_project.json"):
 		status_label.text = "Сохранённый проект не найден"
 		return
-	var file := FileAccess.open("user://dreamhouse_project.json", FileAccess.READ)
-	if file == null:
-		status_label.text = "Не удалось открыть проект"
+	var loaded := ProjectStorage.read_json("user://dreamhouse_project.json", true)
+	if not bool(loaded.get("ok", false)):
+		status_label.text = "Файл проекта повреждён или недоступен: %s" % str(loaded.get("error", "unknown"))
 		return
-	var data: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if not data is Dictionary or not data.has("walls"):
-		status_label.text = "Файл проекта повреждён"
-		return
+	var data: Dictionary = loaded.data
+	if bool(loaded.get("recovered_from_backup", false)):
+		status_label.text = "Основной файл повреждён: загружена резервная копия"
 	var saved_layers: Variant = data.get("layers", {})
 	if saved_layers is Dictionary:
 		for layer_name in plan_canvas.layer_visibility.keys():
