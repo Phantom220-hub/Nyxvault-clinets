@@ -125,6 +125,19 @@ func _initialize() -> void:
 	], 0)
 	assert(not incompatible_merge.ok)
 
+	var room_metrics := Units.room_metrics([rectangle], 3000.0)
+	assert(room_metrics.size() == 1)
+	assert(is_equal_approx(float(room_metrics[0].area_m2), 20000.0 / (48.0 * 48.0)))
+	assert(is_equal_approx(float(room_metrics[0].perimeter_m), 600.0 / 48.0))
+	assert(is_equal_approx(float(room_metrics[0].volume_m3), 20000.0 / (48.0 * 48.0) * 3.0))
+	var net_wall_area := Units.wall_net_area_m2([
+		{"a": Vector2(0, 0), "b": Vector2(200, 0), "height_mm": 2800.0, "opening": "door", "opening_width_mm": 1000.0, "opening_height_mm": 2050.0}
+	])
+	assert(is_equal_approx(net_wall_area, (200.0 / 48.0) * 2.8 - 1.0 * 2.05))
+	var gross_wall_area := Units.wall_net_area_m2([
+		{"a": Vector2(0, 0), "b": Vector2(200, 0), "height_mm": 2800.0, "opening": ""}
+	])
+	assert(is_equal_approx(gross_wall_area, (200.0 / 48.0) * 2.8))
 	var invalid := {"a": Vector2.ZERO, "b": Vector2(1.0, 1.0)}
 	assert(not Geometry.valid_wall(invalid))
 	print("DreamHouse geometry/unit tests passed")
