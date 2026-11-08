@@ -38,7 +38,7 @@ Legend:
 - [ ] Numeric X/Y/Z position and dimension inspector.
 - [ ] Direct furniture rotate/scale gestures.
 - [ ] Multi-select, group/ungroup, duplicate and lock.
-- [ ] Two-finger camera pan/zoom and one-finger orbit with gesture arbitration.
+- [~] Two-finger camera pan/pinch zoom and one-finger orbit; requires device gesture-conflict testing.
 - [~] Perspective/orthographic projection, top/front/side camera presets and camera state saved with the project; named camera bookmarks remain.
 - [ ] Front/side/top/interior camera presets.
 - [~] Furniture drag updates the selected 3D node without rebuilding the full scene; incremental wall/object scene updates remain.
@@ -59,7 +59,7 @@ Legend:
 - [~] Independent floor-to-floor height and slab thickness; explicit absolute elevation editing remains.
 - [ ] Floor finish zones and thickness.
 - [ ] Flat, suspended and multi-level ceilings.
-- [ ] Flat, mono-pitch, gable, hip and mansard roofs.
+- [~] Flat and simple gable roof visuals from the top-floor wall bounding box; mono-pitch, hip, mansard and detailed roof geometry remain.
 - [ ] Roof pitch, ridge, eaves, overhang and roof materials.
 - [ ] Roof hide/show and building cutaway.
 
@@ -67,14 +67,14 @@ Legend:
 - [~] Add/switch floors with independent walls and furniture.
 - [~] Floor rename and independent floor/slab height settings are stored and used for vertical stacking; duplication, reorder, visibility and custom elevation remain.
 - [ ] Basements and attic levels.
-- [ ] Straight, L, U and spiral staircases.
+- [~] Basic parametric straight stair object in the furniture library; floor-to-floor stair connection, L/U/spiral types and code checks remain.
 - [ ] Stair width, rise, run, tread count, landing and handrails.
 - [ ] Validate stair connection between floor elevations.
 - [ ] Building sections and exploded floor view.
 
 ## 6. Furniture and object library
 - [~] Basic sofa, bed, table, chair and wardrobe primitives.
-- [ ] Realistic model library for living room, bedroom, kitchen and bathroom.
+- [~] Procedural furniture/equipment library: sofa, bed, table, chair, wardrobe, kitchen unit, fridge, toilet, bath, sink, plant, lamp, stairs, outlet, switch and radiator; realistic external assets remain.
 - [ ] Kitchen cabinets, counters, sink, hob, refrigerator and oven.
 - [ ] Bath, shower, toilet, vanity, mirror and washing machine.
 - [ ] Desk, computer, shelves, curtains, rugs, plants and decor.
@@ -84,7 +84,7 @@ Legend:
 
 ## 7. Electrical and lighting design
 - [~] Basic sun and fill lighting in the 3D preview.
-- [ ] Electrical outlets, switches, panels and lighting fixtures.
+- [~] Basic visual outlet/switch/radiator symbols as placed objects; circuit routing, panels, schedules and electrical validation remain.
 - [ ] Symbolic electrical routes and circuit layers.
 - [ ] Circuit grouping, labels and connection schedule.
 - [ ] Day/night controls, sun azimuth/elevation and lighting intensity.
@@ -100,7 +100,7 @@ Legend:
 - [ ] Engineering checks must be based on applicable local codes.
 
 ## 9. Site and landscape
-- [ ] Editable site boundary and terrain elevation.
+- [~] Toggleable rectangular site boundary with editable width/depth, lawn, fence, gate gap, path and procedural trees; terrain elevation and irregular parcels remain.
 - [ ] Fence, gates and pedestrian gate.
 - [ ] Paths, driveway and parking.
 - [ ] Garage, terrace, balcony and pool.
@@ -110,7 +110,7 @@ Legend:
 ## 10. Measurement and quantities
 - [~] Pixel-to-metre conversion at 48 px per metre.
 - [x] Shared px/mm/m conversion utility.
-- [ ] Dimension tool for distances and angles.
+- [x] Two-point measurement tool reports distance and angle; dimension chains and persistent annotations remain.
 - [ ] Accurate room area/perimeter and building gross/net area.
 - [ ] Room volume, floor elevation and wall thickness schedules.
 - [ ] Unit preferences, precision and display formatting.
@@ -123,7 +123,7 @@ Legend:
 - [ ] Per-face wall finish assignment.
 - [ ] Roughness/metallic controls, reflections and ambient occlusion.
 - [ ] Day/night environment and saved lighting setups.
-- [ ] Fast/high/maximum graphics presets with mobile profiling.
+- [~] Persistent offline settings for grid snap, angle snap, dimensions and 3D shadows; graphics presets and device profiling remain.
 - [ ] Realistic asset quality without exceeding target Android memory budgets.
 
 ## 12. Drawings and documentation
@@ -134,12 +134,12 @@ Legend:
 - [ ] Electrical and plumbing drawings.
 - [ ] Material specification.
 - [ ] PDF and raster export.
-- [ ] DXF import/export.
+- [~] Basic DXF R12 line export for current-floor wall centerlines; DXF import, thickness/blocks/dimensions and compatibility tests remain.
 - [ ] Supported BIM exchange format and explicit interoperability tests.
 - [ ] Print layout, sheet size, scale and line weights.
 
 ## 13. Material quantities and cost estimates
-- [ ] Wall finish area with openings deducted.
+- [~] Wall finish area with door/window deductions and editable unit prices in a preliminary TJS estimator; multi-material layers and detailed takeoff remain.
 - [ ] Floor and ceiling area.
 - [ ] Tile, wallpaper and flooring quantities with waste factors.
 - [ ] Concrete/volume estimates only where geometry and assumptions support them.
@@ -171,7 +171,7 @@ Legend:
 - [ ] Run Godot headless editor parse/import check.
 - [~] Headless tests cover units, angular snapping, connected wall moves, polygon metrics, bounded faces, splitting, T/cross noding, opening protection and collinear merging; the feature branch still requires CI validation.
 - [ ] Save/load round-trip tests, including old schema versions.
-- [ ] Test touch input, screen scaling, rotation and gesture conflicts.
+- [~] Implemented 2D pinch/pan and mouse-wheel zoom plus 3D one-finger orbit/two-finger pan/pinch; real-device gesture testing remains.
 - [~] Automated tests cover common connected-wall and intersection cases; near-coincident coordinates, collinear overlaps, complex openings, wall-face miters, floor joins and camera picking still need dedicated tests.
 - [ ] Profile CPU/GPU/RAM on low-end Android hardware.
 - [ ] Validate Android permissions and file import/export.
