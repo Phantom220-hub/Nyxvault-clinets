@@ -260,7 +260,7 @@ func _edit_selected_wall() -> void:
 	form.add_theme_constant_override("separation", 8)
 	dialog.add_child(form)
 	var length_input := SpinBox.new()
-	length_input.min_value = 100.0
+	length_input.min_value = 200.0
 	length_input.max_value = 50000.0
 	length_input.step = 10.0
 	var wall_a: Vector2 = wall.get("a", Vector2.ZERO)
@@ -291,7 +291,7 @@ func _edit_selected_wall() -> void:
 	opening_select.select(1 if opening_kind == "door" else 2 if opening_kind == "window" else 0)
 	_labeled_control(form, "Тип проёма", opening_select)
 	var opening_width := SpinBox.new()
-	opening_width.min_value = 500.0
+	opening_width.min_value = 300.0
 	opening_width.max_value = 5000.0
 	opening_width.step = 50.0
 	opening_width.value = float(wall.get("opening_width_mm", 900.0 if opening_kind == "door" else 1250.0))
@@ -334,22 +334,28 @@ func _labeled_control(parent: VBoxContainer, caption: String, control: Control) 
 
 func _on_wall_created(_a: Vector2, _b: Vector2) -> void:
 	walls = plan_canvas.walls.duplicate(true)
+	var opening_warning := false
 	if not pending_opening.is_empty() and not walls.is_empty():
 		var last_index := walls.size() - 1
 		var last_wall: Dictionary = walls[last_index]
 		var last_a: Vector2 = last_wall.get("a", Vector2.ZERO)
 		var last_b: Vector2 = last_wall.get("b", Vector2.ZERO)
 		var length_mm := Units.pixels_to_mm(last_a.distance_to(last_b))
-		last_wall["opening"] = pending_opening
-		last_wall["opening_width_mm"] = minf(900.0 if pending_opening == "door" else 1250.0, maxf(500.0, length_mm - 100.0))
-		last_wall["opening_offset_mm"] = length_mm * 0.5
-		last_wall["sill_height_mm"] = 850.0
-		last_wall["opening_height_mm"] = 2050.0 if pending_opening == "door" else 1200.0
-		walls[last_index] = last_wall
-		plan_canvas.walls = walls.duplicate(true)
-		plan_canvas.queue_redraw()
+		if length_mm >= 600.0:
+			last_wall["opening"] = pending_opening
+			last_wall["opening_width_mm"] = minf(900.0 if pending_opening == "door" else 1250.0, maxf(300.0, length_mm - 100.0))
+			last_wall["opening_offset_mm"] = length_mm * 0.5
+			last_wall["sill_height_mm"] = 850.0
+			last_wall["opening_height_mm"] = 2050.0 if pending_opening == "door" else 1200.0
+			walls[last_index] = last_wall
+			plan_canvas.walls = walls.duplicate(true)
+			plan_canvas.queue_redraw()
+		else:
+			opening_warning = true
 		pending_opening = ""
 	status_label.text = "Стены: %d • Стена добавлена" % walls.size()
+	if opening_warning:
+		status_label.text = "Стена короче 600 mm: проём не создан"
 	if is_3d:
 		_rebuild_3d()
 
