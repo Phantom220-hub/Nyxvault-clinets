@@ -48,6 +48,7 @@ var current_project_name := ""
 var autosave_timer: Timer
 var sun_light: DirectionalLight3D
 var shadows_enabled := true
+var roof_style := 1 # 0 flat, 1 gable
 
 func _ready() -> void:
 	floors = [{"name": "Этаж 1", "floor_height_mm": 2800.0, "slab_thickness_mm": 220.0, "walls": [], "furniture": []}]
@@ -378,12 +379,13 @@ func _build_interface() -> void:
 	_add_button(tools, "СТЕНА В 3D", _toggle_3d_wall_draw, false)
 	_add_button(tools, "КОНЦЫ СТЕН 3D", _toggle_3d_wall_endpoint_edit, false)
 	_add_button(tools, "МАТЕРИАЛ", _cycle_material_theme, false)
+	_add_button(tools, "КРЫША", _toggle_roof_style, false)
 	_add_button(tools, "ПРОЕКТЫ", _open_project_manager, false)
 	_add_button(tools, "ОБУЧЕНИЕ", _show_tutorial, false)
 	_add_button(tools, "ЭКСПОРТ", _export_project, false)
 	_add_button(tools, "ИМПОРТ", _import_project, false)
 	object_menu = PopupMenu.new()
-	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4], ["Кухонная тумба", 5], ["Холодильник", 6], ["Унитаз", 7], ["Ванна", 8], ["Раковина", 9], ["Растение", 10], ["Торшер", 11]]:
+	for pair in [["Диван", 0], ["Кровать", 1], ["Стол", 2], ["Кресло", 3], ["Шкаф", 4], ["Кухонная тумба", 5], ["Холодильник", 6], ["Унитаз", 7], ["Ванна", 8], ["Раковина", 9], ["Растение", 10], ["Торшер", 11], ["Лестница", 12]]:
 		object_menu.add_item(pair[0], pair[1])
 	object_menu.id_pressed.connect(_on_object_selected)
 	add_child(object_menu)
@@ -485,7 +487,7 @@ func _open_object_menu() -> void:
 	object_menu.popup()
 
 func _on_object_selected(id: int) -> void:
-	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф", "Кухонная тумба", "Холодильник", "Унитаз", "Ванна", "Раковина", "Растение", "Торшер"]
+	var names := ["Диван", "Кровать", "Стол", "Кресло", "Шкаф", "Кухонная тумба", "Холодильник", "Унитаз", "Ванна", "Раковина", "Растение", "Торшер", "Лестница"]
 	var index := furniture.size()
 	var placement := Vector2(float((index % 3) - 1) * 2.4, float(int(index / 3)) * 2.4)
 	furniture.append({"kind": id, "position": placement, "rotation": 0.0, "scale": 1.0, "layer": "furniture"})
@@ -1435,9 +1437,57 @@ func _rebuild_3d() -> void:
 		if bool(plan_canvas.layer_visibility.get("furniture", true)):
 			for furniture_index in range(floor_furniture.size()):
 				_add_furniture(root, floor_furniture[furniture_index], base_y, floor_index, furniture_index)
+	_add_roof_geometry(root)
 	_update_camera()
 	if floors.size() > 1:
 		status_label.text = "3D • показаны все этажи: %d" % floors.size()
+
+func _toggle_roof_style() -> void:
+	roof_style = 1 - roof_style
+	if is_3d:
+		_rebuild_3d()
+	status_label.text = "Крыша: " + ("двускатная" if roof_style == 1 else "плоская")
+
+
+func _add_roof_geometry(root: Node3D) -> void:
+	if floors.is_empty():
+		return
+	var top_floor: Dictionary = floors[floors.size() - 1]
+	var top_walls: Array = top_floor.get("walls", [])
+	if top_walls.is_empty():
+		return
+	var min_x := INF
+	var max_x := -INF
+	var min_z := INF
+	var max_z := -INF
+	var top_height := 2.8
+	for wall in top_walls:
+		var a: Vector2 = wall.get("a", Vector2.ZERO)
+		var b: Vector2 = wall.get("b", Vector2.ZERO)
+		min_x = minf(min_x, minf(a.x, b.x))
+		max_x = maxf(max_x, maxf(a.x, b.x))
+		min_z = minf(min_z, minf(a.y, b.y))
+		max_z = maxf(max_z, maxf(a.y, b.y))
+		top_height = maxf(top_height, float(wall.get("height_mm", 2800.0)) / 1000.0)
+	var width := (max_x - min_x) / PPM
+	var depth := (max_z - min_z) / PPM
+	if width < 0.5 or depth < 0.5:
+		return
+	var center_x := ((min_x + max_x) * 0.5 - plan_canvas.size.x * 0.5) / PPM
+	var center_z := ((min_z + max_z) * 0.5 - plan_canvas.size.y * 0.5) / PPM
+	var roof_y := _floor_base_y(floors.size() - 1) + top_height
+	var roof_material := _mat(Color("#657786") if material_theme != 1 else Color("#765B48"), 0.72)
+	if roof_style == 0:
+		_box(root, Vector3(width + 0.6, 0.18, depth + 0.6), Vector3(center_x, roof_y + 0.09, center_z), roof_material)
+	else:
+		var pitch := deg_to_rad(30.0)
+		var rise := depth * 0.5 * tan(pitch)
+		var slope_length := sqrt(pow(depth * 0.5, 2.0) + pow(rise, 2.0))
+		var left_roof := _box(root, Vector3(width + 0.6, 0.16, slope_length + 0.35), Vector3(center_x, roof_y + rise * 0.5, center_z - depth * 0.25), roof_material)
+		left_roof.rotation.x = -pitch
+		var right_roof := _box(root, Vector3(width + 0.6, 0.16, slope_length + 0.35), Vector3(center_x, roof_y + rise * 0.5, center_z + depth * 0.25), roof_material)
+		right_roof.rotation.x = pitch
+
 
 func _update_dragged_furniture_node() -> void:
 	if selected_furniture < 0 or selected_furniture >= furniture.size():
@@ -1554,6 +1604,11 @@ func _add_furniture(root: Node3D, item: Dictionary, floor_y: float = 0.0, floor_
 			lamp_shade.position = Vector3(0, 1.65, 0)
 			lamp_shade.material_override = _mat(Color("#F2D79B"), 0.35)
 			group.add_child(lamp_shade)
+		12:
+			for step_index in range(8):
+				var step_depth := 0.28
+				var step_height := 0.22
+				_box(group, Vector3(1.0, step_height, 0.55), Vector3(0, step_height * (step_index + 0.5), -0.95 + step_depth * step_index), wood)
 
 
 func _snapshot_floor() -> void:
