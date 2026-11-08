@@ -80,7 +80,9 @@ static func wall_net_area_m2(walls: Array) -> float:
 		var b: Variant = wall.get("b")
 		if not (a is Vector2) or not (b is Vector2):
 			continue
-		var length_m := (a as Vector2).distance_to(b as Vector2) / PIXELS_PER_METRE
+		var wall_start: Vector2 = a
+		var wall_end: Vector2 = b
+		var length_m := wall_start.distance_to(wall_end) / PIXELS_PER_METRE
 		var height_m := maxf(0.0, float(wall.get("height_mm", 2800.0)) / MILLIMETRES_PER_METRE)
 		var area := length_m * height_m
 		var opening_kind := str(wall.get("opening", ""))
