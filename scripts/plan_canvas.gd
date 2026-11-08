@@ -276,6 +276,10 @@ func redo() -> bool:
 	queue_redraw()
 	return true
 
+func reset_history() -> void:
+	undo_history.clear()
+	redo_history.clear()
+
 func clear_plan() -> void:
 	if not walls.is_empty():
 		_record_history()
